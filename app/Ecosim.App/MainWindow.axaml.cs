@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -140,6 +141,66 @@ public partial class MainWindow : Window
         SyncTransform();
         UpdateHoverText();
         e.Handled = true;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (_vm is null || e.Handled) return;
+        // Typing in a box must never trigger a shortcut.
+        if (e.Source is TextBox or NumericUpDown) return;
+
+        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        switch (e.Key)
+        {
+            case Key.Space when !ctrl:
+                Execute(_vm.ToggleRunCommand);
+                break;
+            case Key.S when !ctrl:
+                Execute(_vm.StepCommand);
+                break;
+            case Key.S when ctrl:
+                Execute(_vm.SaveRleCommand);
+                break;
+            case Key.O when ctrl:
+                Execute(_vm.OpenRleCommand);
+                break;
+            case Key.G when ctrl:
+                Execute(_vm.ToggleTopologyCommand);
+                break;
+            case Key.R:
+                Execute(_vm.RandomizeCommand);
+                break;
+            case Key.C:
+                Execute(_vm.ClearCommand);
+                break;
+            case Key.F:
+                Execute(_vm.FitViewCommand);
+                break;
+            case Key.Add or Key.OemPlus:
+                _vm.Speed = _vm.Speed + 5;
+                break;
+            case Key.Subtract or Key.OemMinus:
+                _vm.Speed = Math.Max(1, _vm.Speed - 5);
+                break;
+            case Key.D1:
+                _vm.Canvas.Species = 1;
+                break;
+            case Key.D2:
+                _vm.Canvas.Species = 2;
+                break;
+            case Key.D3:
+                _vm.Canvas.Species = 3;
+                break;
+            default:
+                return;
+        }
+        e.Handled = true;
+    }
+
+    private static void Execute(ICommand command)
+    {
+        if (command.CanExecute(null)) command.Execute(null);
     }
 
     private void Apply(System.Collections.Generic.IReadOnlyList<PaintOp>? ops)
