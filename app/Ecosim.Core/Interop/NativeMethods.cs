@@ -1,0 +1,71 @@
+using System.Runtime.InteropServices;
+using Ecosim.Core.Abi;
+
+namespace Ecosim.Core.Interop;
+
+/// <summary>
+/// The only place in the codebase that knows P/Invoke exists. Everything above
+/// it (World, the app, the tests) talks to <see cref="NativeWorld"/> instead.
+/// </summary>
+internal static class NativeMethods
+{
+    private const string Library = "ecosim";
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_abi_version();
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_abi_struct_size(int which);
+
+    // Returned pointer is thread-local storage owned by the engine: copy it out
+    // immediately, never keep it.
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr ecosim_last_error();
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr ecosim_world_create(ref EcosimConfigDto cfg);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void ecosim_world_destroy(IntPtr world);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_world_step(IntPtr world, int n_steps);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_set_topology(IntPtr world, int topology);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long ecosim_generation(IntPtr world);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_world_grid_view(IntPtr world, ref EcosimGridViewDto view);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_render_frame(IntPtr world, IntPtr bgra, int row_pitch,
+                                                ref EcosimPaletteDto palette);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_paint(IntPtr world, EcosimPaintOpDto[] ops, int count);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_clear(IntPtr world, int fill_species);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_randomize(IntPtr world, ref EcosimSeedConfigDto seed_cfg);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_stats(IntPtr world, ref EcosimStatsDto stats);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern ulong ecosim_hash(IntPtr world);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_rle_size(IntPtr world, out int needed);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_to_rle(IntPtr world, byte[] buffer, int capacity,
+                                          out int written);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_from_rle(IntPtr world, byte[] rle);
+}

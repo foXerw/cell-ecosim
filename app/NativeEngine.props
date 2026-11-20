@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    Shared by every managed project that must find ecosim.dll at run time.
+    Override with -p:EcosimNativeDir=... when the native build lives elsewhere.
+  -->
+  <PropertyGroup>
+    <EcosimNativeDir Condition="'$(EcosimNativeDir)' == ''">$(MSBuildThisFileDirectory)../build/native</EcosimNativeDir>
+    <EcosimNativeDll>$(EcosimNativeDir)/ecosim.dll</EcosimNativeDll>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(EcosimNativeDll)')">
+    <None Include="$(EcosimNativeDll)" Link="ecosim.dll" CopyToOutputDirectory="PreserveNewest" Pack="false" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../NativeEngine.props" />
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Ecosim.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The test assembly asserts byte layout of the internal ABI structs. -->
+    <InternalsVisibleTo Include="Ecosim.Tests" />
+  </ItemGroup>
+
+</Project>
