@@ -68,4 +68,8 @@ internal static class NativeMethods
 
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     public static extern int ecosim_from_rle(IntPtr world, byte[] rle);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_from_rle_at(IntPtr world, byte[] rle, int origin_x,
+                                               int origin_y);
 }

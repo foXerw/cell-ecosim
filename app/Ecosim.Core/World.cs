@@ -31,6 +31,21 @@ public sealed class World : IDisposable
 
     public void Step(int nSteps) => _native.Step(nSteps);
 
+    /// <summary>Applies a whole brush stroke in one call across the border.</summary>
+    public void Paint(IReadOnlyList<PaintOp> ops) => _native.Paint(ops);
+
+    /// <summary>FNV-1a over the species plane; the tests use it to prove two
+    /// runs agree cell for cell.</summary>
+    public ulong Hash() => _native.Hash();
+
+    public string ToRle() => _native.ToRle();
+
+    /// <summary>Places the pattern with its top-left corner at (0, 0).</summary>
+    public void FromRle(string text) => FromRleAt(text, 0, 0);
+
+    public void FromRleAt(string text, int originX, int originY)
+        => _native.FromRleAt(text, originX, originY);
+
     /// <summary>The handle-level object, for the few callers that must hold the
     /// ABI lock across two operations (rendering, snapshotting).</summary>
     internal NativeWorld Native => _native;

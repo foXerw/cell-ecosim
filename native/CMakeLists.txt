@@ -13,25 +13,35 @@ endif()
 # so the managed side has a single predictable path (docs/building.md).
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-add_library(ecosim SHARED
-  src/abi/ecosim_abi.cpp
+# MinGW: ship self-contained binaries, no MSYS2 runtime needed next to them.
+set(ECOSIM_STATIC_LINK -static -static-libgcc -static-libstdc++)
+
+# The engine as a static core. Both consumers below take it from here:
+# the DLL (for the managed app) and the native binaries (tests, CLI), which
+# link it directly. On this toolchain, linking an executable against a freshly
+# built *import library* fails without any diagnostic from ld, so the native
+# binaries deliberately do not go through ecosim.dll's .a — they compile the
+# same ABI shell over the same objects.
+add_library(ecosim_core STATIC
   src/core/grid.cpp
   src/core/kernel.cpp
   src/core/kernel_fast.cpp
   src/core/parallel.cpp
+  src/core/rle.cpp
   src/core/world.cpp
   src/util/error.cpp
 )
-target_include_directories(ecosim
+target_include_directories(ecosim_core
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_compile_definitions(ecosim PRIVATE ECOSIM_IMPLEMENTING=1)
+target_link_options(ecosim_core PRIVATE ${ECOSIM_STATIC_LINK})
 
-# MinGW: ship self-contained binaries, no MSYS2 runtime needed next to them.
-# Without this, ecosim_tests.exe only starts if ucrt64/bin happens to be on
-# PATH, which is exactly the kind of "works on my shell" trap to avoid.
-set(ECOSIM_STATIC_LINK -static -static-libgcc -static-libstdc++)
+# The shared library the C# side binds to.
+add_library(ecosim SHARED src/abi/ecosim_abi.cpp)
+target_include_directories(ecosim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(ecosim PRIVATE ECOSIM_IMPLEMENTING=1)
+target_link_libraries(ecosim PRIVATE ecosim_core)
 target_link_options(ecosim PRIVATE ${ECOSIM_STATIC_LINK})
 set_target_properties(ecosim PROPERTIES
   PREFIX ""
@@ -39,24 +49,25 @@ set_target_properties(ecosim PROPERTIES
   SUFFIX ".dll"
 )
 
+# Native tests: same ABI surface, statically linked.
 add_executable(ecosim_tests
+  src/abi/ecosim_abi.cpp
   tests/main.cpp
   tests/test_world.cpp
   tests/test_kernel.cpp
   tests/test_fast_kernel.cpp
   tests/test_parallel.cpp
-  # Kernel and pool unit tests call the C++ classes directly, so they compile
-  # those sources in instead of reaching through the DLL's C ABI.
-  src/core/grid.cpp
-  src/core/kernel.cpp
-  src/core/kernel_fast.cpp
-  src/core/parallel.cpp
+  tests/test_rle.cpp
+  tests/test_patterns.cpp
 )
+target_compile_definitions(ecosim_tests PRIVATE
+  ECOSIM_LINK_STATIC=1
+  ECOSIM_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data/patterns")
 target_include_directories(ecosim_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/tests
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(ecosim_tests PRIVATE ecosim)
+target_link_libraries(ecosim_tests PRIVATE ecosim_core)
 target_link_options(ecosim_tests PRIVATE ${ECOSIM_STATIC_LINK})
 
 enable_testing()

@@ -71,6 +71,55 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    public void Paint(IReadOnlyList<PaintOp> ops)
+    {
+        ArgumentNullException.ThrowIfNull(ops);
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            if (ops.Count == 0) return;
+            var dtos = new EcosimPaintOpDto[ops.Count];
+            for (var i = 0; i < ops.Count; ++i) dtos[i] = EcosimPaintOpDto.From(ops[i]);
+            ErrorTranslation.ThrowIfFailed("paint",
+                NativeMethods.ecosim_paint(handle, dtos, dtos.Length));
+        }
+    }
+
+    public ulong Hash()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            return NativeMethods.ecosim_hash(handle);
+        }
+    }
+
+    public string ToRle()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            ErrorTranslation.ThrowIfFailed("rle_size",
+                NativeMethods.ecosim_rle_size(handle, out var needed));
+            var buffer = new byte[needed];
+            ErrorTranslation.ThrowIfFailed("to_rle",
+                NativeMethods.ecosim_to_rle(handle, buffer, needed, out var written));
+            return System.Text.Encoding.UTF8.GetString(buffer, 0, Math.Max(written - 1, 0));
+        }
+    }
+
+    public void FromRleAt(string text, int originX, int originY)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            var bytes = System.Text.Encoding.UTF8.GetBytes(text + "\0");
+            ErrorTranslation.ThrowIfFailed("from_rle",
+                NativeMethods.ecosim_from_rle_at(handle, bytes, originX, originY));
+        }
+    }
+
     public long Generation
     {
         get

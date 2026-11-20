@@ -20,6 +20,8 @@
 #if defined(_WIN32)
 #  if defined(ECOSIM_IMPLEMENTING)
 #    define ECOSIM_API __declspec(dllexport)
+#  elif defined(ECOSIM_LINK_STATIC)
+#    define ECOSIM_API  /* the same objects, linked in rather than loaded */
 #  else
 #    define ECOSIM_API __declspec(dllimport)
 #  endif
@@ -163,6 +165,10 @@ ECOSIM_API int32_t ECOSIM_CALL ecosim_rle_size(const EcosimWorld* world, int32_t
 ECOSIM_API int32_t ECOSIM_CALL ecosim_to_rle(const EcosimWorld* world, char* buf, int32_t cap,
                                              int32_t* out_written);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_from_rle(EcosimWorld* world, const char* rle);
+/* Same, with the pattern's top-left corner placed at (origin_x, origin_y).
+ * Added in M1 so "drop this pattern at the cursor" needs no world rebuild. */
+ECOSIM_API int32_t ECOSIM_CALL ecosim_from_rle_at(EcosimWorld* world, const char* rle,
+                                                  int32_t origin_x, int32_t origin_y);
 
 #ifdef __cplusplus
 }  /* extern "C" */

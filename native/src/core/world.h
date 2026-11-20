@@ -34,6 +34,7 @@ class World {
 
   Grid& grid() { return grid_; }
   const Grid& grid() const { return grid_; }
+  const RuleTable& rules() const { return rules_; }
 
   static bool validate(const EcosimConfig& cfg, char* why, int32_t cap);
 

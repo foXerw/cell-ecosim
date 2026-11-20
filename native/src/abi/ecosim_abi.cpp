@@ -5,8 +5,12 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <new>
+#include <string>
+#include <vector>
 
+#include "core/rle.h"
 #include "core/world.h"
 #include "util/error.h"
 
@@ -159,19 +163,96 @@ int32_t ecosim_stats(const EcosimWorld*, EcosimStats*) {
   return not_implemented("ecosim_stats");
 }
 
-uint64_t ecosim_hash(const EcosimWorld*) {
-  not_implemented("ecosim_hash");
-  return 0;
+uint64_t ecosim_hash(const EcosimWorld* world) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return 0;
+
+  // FNV-1a over the dimensions and the species plane: enough to prove two
+  // runs agree cell for cell, cheap enough to call from a test on every case.
+  uint64_t h = 1469598103934665603ull;
+  auto mix = [&h](uint64_t v) {
+    for (int i = 0; i < 8; ++i) {
+      h = (h ^ ((v >> (i * 8)) & 0xFF)) * 1099511628211ull;
+    }
+  };
+  mix(static_cast<uint64_t>(w->grid().w()));
+  mix(static_cast<uint64_t>(w->grid().h()));
+  const std::vector<uint8_t>& species = w->grid().cur().species;
+  for (uint8_t s : species) h = (h ^ s) * 1099511628211ull;
+  return h;
 }
 
-int32_t ecosim_rle_size(const EcosimWorld*, int32_t*) {
-  return not_implemented("ecosim_rle_size");
+int32_t ecosim_rle_size(const EcosimWorld* world, int32_t* out_needed) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (out_needed == nullptr) {
+    ecosim::set_error("out_needed 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  *out_needed = ecosim::rle::worst_case_size(w->grid().w(), w->grid().h());
+  return ECOSIM_OK;
 }
 
-int32_t ecosim_to_rle(const EcosimWorld*, char*, int32_t, int32_t*) {
-  return not_implemented("ecosim_to_rle");
+int32_t ecosim_to_rle(const EcosimWorld* world, char* buf, int32_t cap, int32_t* out_written) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (buf == nullptr || out_written == nullptr || cap <= 0) {
+    ecosim::set_error("to_rle 需要非空缓冲区与 out_written");
+    return ECOSIM_ERR_INVALID;
+  }
+
+  std::string text;
+  const int32_t rc = ecosim::rle::encode(w->grid().cur(), w->grid().w(), w->grid().h(), w->rules(),
+                                         text);
+  if (rc != ECOSIM_OK) return rc;
+
+  if (static_cast<int64_t>(text.size()) + 1 > cap) {
+    char msg[128];
+    std::snprintf(msg, sizeof(msg), "缓冲区 %d 字节不够，需要 %zu 字节（先调 ecosim_rle_size）",
+                  cap, text.size() + 1);
+    ecosim::set_error(msg);
+    return ECOSIM_ERR_SIZE;
+  }
+
+  std::memcpy(buf, text.data(), text.size());
+  buf[text.size()] = '\0';
+  *out_written = static_cast<int32_t>(text.size()) + 1;
+  return ECOSIM_OK;
 }
 
-int32_t ecosim_from_rle(EcosimWorld*, const char*) { return not_implemented("ecosim_from_rle"); }
+static int32_t load_rle_at(EcosimWorld* world, const char* rle, int32_t origin_x,
+                           int32_t origin_y) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (rle == nullptr) {
+    ecosim::set_error("rle 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+
+  int32_t pattern_w = 0;
+  int32_t pattern_h = 0;
+  std::string warning;
+  const int32_t rc = ecosim::rle::decode(std::string_view(rle), w->grid().cur(), w->grid().w(),
+                                         w->grid().h(), origin_x, origin_y, pattern_w, pattern_h,
+                                         warning);
+  if (rc != ECOSIM_OK) return rc;
+
+  // Same rule as paint: the scratch buffer must not hold a stale generation.
+  w->grid().copy_cur_to_nxt();
+  return ECOSIM_OK;
+}
+
+int32_t ecosim_from_rle(EcosimWorld* world, const char* rle) {
+  return load_rle_at(world, rle, 0, 0);
+}
+
+int32_t ecosim_from_rle_at(EcosimWorld* world, const char* rle, int32_t origin_x,
+                           int32_t origin_y) {
+  return load_rle_at(world, rle, origin_x, origin_y);
+}
 
 }  // extern "C"
