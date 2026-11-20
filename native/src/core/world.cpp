@@ -1,7 +1,9 @@
 #include "core/world.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
+#include <memory>
 #include <stdexcept>
 
 #include "core/kernel_fast.h"
@@ -53,12 +55,15 @@ World::World(const EcosimConfig& cfg) : cfg_(cfg), rules_(RuleTable::from_config
     // Older client: fill the trailing fields we do have with defaults.
     cfg_.rng_seed = 0;
   }
-  cfg_.threads = cfg_.threads == 0 ? 1 : cfg_.threads;
+  // 0 means "engine decides"; explicit counts are capped so a silly config
+  // cannot spawn thousands of threads.
+  cfg_.threads = cfg_.threads == 0 ? parallel::default_threads() : std::clamp(cfg_.threads, 1, 32);
   for (int i = 0; i < 9; ++i) {
     cfg_.birth_mask[i] = cfg_.birth_mask[i] ? 1 : 0;
     cfg_.survive_mask[i] = cfg_.survive_mask[i] ? 1 : 0;
   }
   grid_.allocate(cfg_.w, cfg_.h);
+  pool_ = std::make_unique<parallel::Pool>(cfg_.threads);
 }
 
 int32_t World::step(int32_t n_steps) {
@@ -68,10 +73,15 @@ int32_t World::step(int32_t n_steps) {
   }
   if (n_steps == 0) return ECOSIM_OK;
 
+  const int32_t band_rows = parallel::band_rows_for(grid_.h(), pool_->size());
   for (int32_t i = 0; i < n_steps; ++i) {
-    // The fast path is proven cell-for-cell equal to the reference kernel by
-    // tests/test_fast_kernel.cpp; the reference stays as the oracle.
-    kernel::step_fast(grid_.cur(), grid_.nxt(), grid_.w(), grid_.h(), rules_, cfg_.topology);
+    // Bands write disjoint row ranges of nxt and only read cur, so they can run
+    // concurrently. The result is proven identical to a single-threaded pass by
+    // tests/test_parallel.cpp.
+    pool_->run_bands(grid_.h(), band_rows, [&](int32_t y0, int32_t y1) {
+      kernel::step_fast(grid_.cur(), grid_.nxt(), grid_.w(), grid_.h(), y0, y1, rules_,
+                        cfg_.topology);
+    });
     grid_.swap_buffers();
   }
   generation_ += static_cast<uint64_t>(n_steps);

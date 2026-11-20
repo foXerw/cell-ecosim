@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 
 #include "core/grid.h"
 #include "core/kernel.h"
+#include "core/parallel.h"
 #include "ecosim_abi.h"
 
 namespace ecosim {
@@ -39,6 +41,7 @@ class World {
   EcosimConfig cfg_;
   RuleTable rules_;
   Grid grid_;
+  std::unique_ptr<parallel::Pool> pool_;
   uint64_t generation_ = 0;
 };
 

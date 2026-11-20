@@ -18,6 +18,7 @@ add_library(ecosim SHARED
   src/core/grid.cpp
   src/core/kernel.cpp
   src/core/kernel_fast.cpp
+  src/core/parallel.cpp
   src/core/world.cpp
   src/util/error.cpp
 )
@@ -27,8 +28,11 @@ target_include_directories(ecosim
 )
 target_compile_definitions(ecosim PRIVATE ECOSIM_IMPLEMENTING=1)
 
-# MinGW: ship a self-contained DLL, no MSYS2 runtime needed next to it.
-target_link_options(ecosim PRIVATE -static -static-libgcc -static-libstdc++)
+# MinGW: ship self-contained binaries, no MSYS2 runtime needed next to them.
+# Without this, ecosim_tests.exe only starts if ucrt64/bin happens to be on
+# PATH, which is exactly the kind of "works on my shell" trap to avoid.
+set(ECOSIM_STATIC_LINK -static -static-libgcc -static-libstdc++)
+target_link_options(ecosim PRIVATE ${ECOSIM_STATIC_LINK})
 set_target_properties(ecosim PROPERTIES
   PREFIX ""
   OUTPUT_NAME ecosim
@@ -40,17 +44,20 @@ add_executable(ecosim_tests
   tests/test_world.cpp
   tests/test_kernel.cpp
   tests/test_fast_kernel.cpp
-  # Kernel unit tests call step_birsurv/step_fast directly, so they compile the
-  # sources in instead of reaching through the DLL's C ABI.
+  tests/test_parallel.cpp
+  # Kernel and pool unit tests call the C++ classes directly, so they compile
+  # those sources in instead of reaching through the DLL's C ABI.
   src/core/grid.cpp
   src/core/kernel.cpp
   src/core/kernel_fast.cpp
+  src/core/parallel.cpp
 )
 target_include_directories(ecosim_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/tests
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(ecosim_tests PRIVATE ecosim)
+target_link_options(ecosim_tests PRIVATE ${ECOSIM_STATIC_LINK})
 
 enable_testing()
 add_test(NAME native_core COMMAND ecosim_tests)

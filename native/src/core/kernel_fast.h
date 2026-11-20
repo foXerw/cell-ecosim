@@ -28,5 +28,11 @@ int32_t popcount8(uint8_t mask);
 void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, const RuleTable& rules,
                int32_t topology);
 
+/// Row-range variant used by the band split: reads rows [y_begin-1, y_end] of
+/// `in` (the halo is read-only, so neighbouring bands may share it) and writes
+/// only rows [y_begin, y_end) of `out`, which keeps band outputs disjoint.
+void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, int32_t y_begin,
+               int32_t y_end, const RuleTable& rules, int32_t topology);
+
 }  // namespace kernel
 }  // namespace ecosim

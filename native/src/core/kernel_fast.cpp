@@ -52,6 +52,11 @@ uint8_t neighbor_mask(const Planes& in, int32_t w, int32_t h, int32_t x, int32_t
 
 void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, const RuleTable& rules,
                int32_t topology) {
+  step_fast(in, out, w, h, 0, h, rules, topology);
+}
+
+void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, int32_t y_begin,
+               int32_t y_end, const RuleTable& rules, int32_t topology) {
   const bool torus = topology == ECOSIM_TOPOLOGY_TORUS;
 
   // Three rotating rows of 0/1 alive flags. Reading these instead of striding
@@ -67,10 +72,12 @@ void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, const RuleTa
     for (int32_t x = 0; x < w; ++x) dst[x] = src[x] != 0 ? 1 : 0;
   };
 
-  load(up, torus ? h - 1 : -1);
-  load(mid, 0);
+  if (y_begin >= y_end) return;
 
-  for (int32_t y = 0; y < h; ++y) {
+  load(up, torus ? wrap(y_begin - 1, h) : y_begin - 1);
+  load(mid, y_begin);
+
+  for (int32_t y = y_begin; y < y_end; ++y) {
     load(down, torus ? wrap(y + 1, h) : y + 1);
 
     const size_t row = static_cast<size_t>(y) * w;
