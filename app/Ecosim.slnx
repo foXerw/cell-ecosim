@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="Ecosim.App/Ecosim.App.csproj" />
   <Project Path="Ecosim.Core/Ecosim.Core.csproj" />
   <Project Path="Ecosim.Tests/Ecosim.Tests.csproj" />
 </Solution>
