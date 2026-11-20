@@ -17,6 +17,7 @@ add_library(ecosim SHARED
   src/abi/ecosim_abi.cpp
   src/core/grid.cpp
   src/core/kernel.cpp
+  src/core/kernel_fast.cpp
   src/core/world.cpp
   src/util/error.cpp
 )
@@ -38,8 +39,17 @@ add_executable(ecosim_tests
   tests/main.cpp
   tests/test_world.cpp
   tests/test_kernel.cpp
+  tests/test_fast_kernel.cpp
+  # Kernel unit tests call step_birsurv/step_fast directly, so they compile the
+  # sources in instead of reaching through the DLL's C ABI.
+  src/core/grid.cpp
+  src/core/kernel.cpp
+  src/core/kernel_fast.cpp
 )
-target_include_directories(ecosim_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+target_include_directories(ecosim_tests PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 target_link_libraries(ecosim_tests PRIVATE ecosim)
 
 enable_testing()

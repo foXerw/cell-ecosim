@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <stdexcept>
 
+#include "core/kernel_fast.h"
 #include "util/error.h"
 
 namespace ecosim {
@@ -68,7 +69,9 @@ int32_t World::step(int32_t n_steps) {
   if (n_steps == 0) return ECOSIM_OK;
 
   for (int32_t i = 0; i < n_steps; ++i) {
-    kernel::step_birsurv(grid_.cur(), grid_.nxt(), grid_.w(), grid_.h(), rules_, cfg_.topology);
+    // The fast path is proven cell-for-cell equal to the reference kernel by
+    // tests/test_fast_kernel.cpp; the reference stays as the oracle.
+    kernel::step_fast(grid_.cur(), grid_.nxt(), grid_.w(), grid_.h(), rules_, cfg_.topology);
     grid_.swap_buffers();
   }
   generation_ += static_cast<uint64_t>(n_steps);
