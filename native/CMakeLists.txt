@@ -70,5 +70,18 @@ target_include_directories(ecosim_tests PRIVATE
 target_link_libraries(ecosim_tests PRIVATE ecosim_core)
 target_link_options(ecosim_tests PRIVATE ${ECOSIM_STATIC_LINK})
 
+# Headless consumer of the same ABI the app binds to.
+add_executable(ecosim_cli
+  src/abi/ecosim_abi.cpp
+  tools/ecosim-cli/main.cpp
+)
+set_target_properties(ecosim_cli PROPERTIES OUTPUT_NAME ecosim-cli)
+target_compile_definitions(ecosim_cli PRIVATE ECOSIM_LINK_STATIC=1)
+target_include_directories(ecosim_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(ecosim_cli PRIVATE ecosim_core)
+target_link_options(ecosim_cli PRIVATE ${ECOSIM_STATIC_LINK})
+
 enable_testing()
 add_test(NAME native_core COMMAND ecosim_tests)
+add_test(NAME cli_smoke COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/cli_smoke.sh
+                                $<TARGET_FILE:ecosim_cli>)
