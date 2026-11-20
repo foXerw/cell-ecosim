@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Ecosim.App.ViewModels;
 using Ecosim.Core;
 
@@ -32,6 +33,8 @@ public partial class MainWindow : Window
         }
 
         var vm = _vm;
+        vm.StorageProviderFactory = () => Task.FromResult<IStorageProvider?>(StorageProvider);
+
         CanvasHost.SizeChanged += (_, e) =>
         {
             vm.Canvas.SetCanvasSize(e.NewSize);
@@ -39,18 +42,42 @@ public partial class MainWindow : Window
             vm.Redraw();
         };
         vm.PropertyChanged += OnViewModelChanged;
-        vm.Canvas.PropertyChanged += OnCanvasChanged;
+        AttachCanvas(vm);
 
         CanvasImage.Source = vm.CanvasBitmap;
         SyncTransform();
         vm.Redraw();
     }
 
+    /// <summary>The canvas view model is replaced when the world is rebuilt, so
+    /// the transform subscription has to move with it.</summary>
+    private void AttachCanvas(MainViewModel vm)
+    {
+        vm.Canvas.PropertyChanged += OnCanvasChanged;
+    }
+
+    private void OnPresetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_vm is null || sender is not Button { Tag: string tag }) return;
+        if (!int.TryParse(tag, out var size)) return;
+        _vm.NewWidth = size;
+        _vm.NewHeight = size;
+        if (_vm.NewWorldCommand.CanExecute(null)) _vm.NewWorldCommand.Execute(null);
+    }
+
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_vm is null) return;
         if (e.PropertyName == nameof(MainViewModel.CanvasBitmap))
         {
-            CanvasImage.Source = _vm?.CanvasBitmap;
+            CanvasImage.Source = _vm.CanvasBitmap;
+        }
+        else if (e.PropertyName == nameof(MainViewModel.Canvas))
+        {
+            AttachCanvas(_vm);
+            _vm.Canvas.SetCanvasSize(CanvasHost.Bounds.Size);
+            SyncTransform();
+            _vm.Redraw();
         }
     }
 

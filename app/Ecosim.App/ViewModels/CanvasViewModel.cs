@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using Avalonia;
 using Ecosim.Core;
 
@@ -34,7 +35,13 @@ public sealed class CanvasViewModel : ObservableObject
     public CanvasViewModel(World world)
     {
         _world = world;
+        SelectToolCommand = new RelayCommand(p =>
+        {
+            if (p is CanvasTool tool) Tool = tool;
+        });
     }
+
+    public ICommand SelectToolCommand { get; }
 
     public Size CanvasSize => _canvasSize;
 

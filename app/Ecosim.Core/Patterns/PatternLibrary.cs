@@ -20,6 +20,20 @@ public static class PatternLibrary
         new("r_pentomino", "R-五联骨（玛土撒拉）", "x = 3, y = 3, rule = B3/S23\nb2o$2o$bo!\n"),
     };
 
+    // Declared before All on purpose: static initialisers run top to bottom,
+    // and Load() reaches DisplayName() through this table.
+    private static readonly Dictionary<string, string> KnownNames = new()
+    {
+        ["block"] = "方块（静物）",
+        ["beehive"] = "蜂巢（静物）",
+        ["blinker"] = "闪光灯（周期 2）",
+        ["glider"] = "滑翔机",
+        ["r_pentomino"] = "R-五联骨（玛土撒拉）",
+        ["lwss"] = "轻型飞船",
+        ["pulsar"] = "脉冲星（周期 3）",
+        ["gosper_gun"] = "高斯帕滑翔机枪",
+    };
+
     public static IReadOnlyList<Pattern> All { get; } = Load();
 
     public static Pattern? Find(string id)
@@ -37,6 +51,13 @@ public static class PatternLibrary
         }
         return null;
     }
+
+    private static string DisplayName(string id)
+        => id.Length == 0
+            ? "pattern"
+            : KnownNames.TryGetValue(id, out var name)
+                ? name
+                : char.ToUpperInvariant(id[0]) + id[1..].Replace('_', ' ');
 
     private static List<Pattern> Load()
     {
@@ -59,7 +80,7 @@ public static class PatternLibrary
             if (string.IsNullOrWhiteSpace(text)) continue;
 
             var index = patterns.FindIndex(p => p.Id == id);
-            var pattern = new Pattern(id, id, text);
+            var pattern = new Pattern(id, DisplayName(id), text);
             if (index >= 0) patterns[index] = pattern;
             else patterns.Add(pattern);
         }

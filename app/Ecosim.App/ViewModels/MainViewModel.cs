@@ -1,46 +1,43 @@
 using System.Windows.Input;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using Ecosim.App.Rendering;
 using Ecosim.Core;
 
 namespace Ecosim.App.ViewModels;
 
 /// <summary>
-/// Owns the world and the clock. Milestone M0 scope: create a world, run it,
-/// show the cost. The canvas, brush and panels arrive in later tasks and hang
-/// off this same object.
+/// Owns the world, the clock and everything the chrome binds to. The canvas
+/// itself lives in <see cref="CanvasViewModel"/>; this type only coordinates.
 /// </summary>
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
     public const int DefaultWidth = 512;
     public const int DefaultHeight = 512;
 
-    private readonly World _world;
-    private readonly SimClock _clock;
-    private readonly CanvasViewModel _canvas;
-    private readonly CanvasRenderer _renderer;
+    private World _world;
+    private SimClock _clock;
+    private readonly CanvasRenderer _renderer = new();
+    private CanvasViewModel _canvas;
     private WriteableBitmap? _canvasBitmap;
+
     private int _alive;
     private long _generation;
     private double _stepMs;
     private bool _isRunning;
     private int _speed = 30;
+    private string _birthText = "3";
+    private string _surviveText = "23";
+    private int _newWidth = DefaultWidth;
+    private int _newHeight = DefaultHeight;
+    private string? _notice;
+    private Pattern? _selectedPattern;
 
     public MainViewModel()
     {
-        _world = new World(WorldConfig.Default(DefaultWidth, DefaultHeight));
-        // Open on a live soup rather than an empty board: the first thing the
-        // user sees should already be moving.
-        _world.Randomize(new SeedConfig
-        {
-            Species = 1,
-            DensityPermille = 220,
-            Seed = unchecked((ulong)Environment.TickCount64) | 1,
-        });
-        _clock = new SimClock(_world, _speed);
-        _clock.Tick += OnTick;
+        _world = CreateWorld(DefaultWidth, DefaultHeight, WorldConfig.Default(DefaultWidth, DefaultHeight));
         _canvas = new CanvasViewModel(_world);
-        _renderer = new CanvasRenderer();
+        _clock = CreateClock();
 
         ToggleRunCommand = new RelayCommand(ToggleRun);
         StepCommand = new RelayCommand(Step, () => !IsRunning);
@@ -51,48 +48,56 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _canvas.Fit();
             Redraw();
         });
+        ClearCommand = new RelayCommand(() =>
+        {
+            _world.Clear();
+            Redraw();
+        });
+        RandomizeCommand = new RelayCommand(() =>
+        {
+            _world.Randomize(new SeedConfig
+            {
+                Species = _canvas.Species,
+                DensityPermille = 220,
+                Seed = unchecked((ulong)Environment.TickCount64) | 1,
+            });
+            Redraw();
+        });
+        ApplyPatternCommand = new RelayCommand(ApplySelectedPattern, () => _selectedPattern is not null);
+        ApplyRuleCommand = new RelayCommand(ApplyRule);
+        NewWorldCommand = new RelayCommand(NewWorld);
+        SaveRleCommand = new AsyncRelayCommand(_ => SaveRleAsync());
+        OpenRleCommand = new AsyncRelayCommand(_ => OpenRleAsync());
+        ToggleTopologyCommand = new RelayCommand(() =>
+        {
+            Topology = Topology == GridTopology.Torus ? GridTopology.Bounded : GridTopology.Torus;
+            OnPropertyChanged(nameof(TopologyLabel));
+        });
     }
+
+    // ---- state -----------------------------------------------------------
+
+    public World World => _world;
 
     public CanvasViewModel Canvas => _canvas;
 
-    /// <summary>The bitmap the Image binds to; changes only when the world size does.</summary>
     public WriteableBitmap? CanvasBitmap => _canvasBitmap;
 
     public Palette Palette { get; } = Palette.Default;
 
-    public ICommand ZoomInCommand { get; }
+    public IReadOnlyList<Pattern> Patterns { get; } = PatternLibrary.All;
 
-    public ICommand ZoomOutCommand { get; }
-
-    public ICommand FitViewCommand { get; }
-
-    /// <summary>One native render into the bitmap. UI thread only.</summary>
-    public void Redraw()
+    public Pattern? SelectedPattern
     {
-        Alive = _world.Stats().Alive;
-        _renderer.Draw(_world, Palette);
-        if (!ReferenceEquals(_renderer.Bitmap, _canvasBitmap))
+        get => _selectedPattern;
+        set
         {
-            _canvasBitmap = _renderer.Bitmap;
-            OnPropertyChanged(nameof(CanvasBitmap));
+            if (Set(ref _selectedPattern, value))
+            {
+                ((RelayCommand)ApplyPatternCommand).NotifyCanExecuteChanged();
+            }
         }
     }
-
-    public void ZoomAtCentre(double factor)
-    {
-        var size = _canvas.CanvasSize;
-        _canvas.ZoomAt(new Avalonia.Point(size.Width / 2, size.Height / 2), factor);
-    }
-
-    public void ZoomAt(Avalonia.Point screen, double factor) => _canvas.ZoomAt(screen, factor);
-
-    public string Title => "Cell Ecosim — 细胞生态模拟器";
-
-    public ICommand ToggleRunCommand { get; }
-
-    public ICommand StepCommand { get; }
-
-    public World World => _world;
 
     public bool IsRunning
     {
@@ -113,6 +118,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         private set
         {
             if (Set(ref _generation, value)) RaiseDependent(nameof(StatusText));
+        }
+    }
+
+    public int Alive
+    {
+        get => _alive;
+        private set
+        {
+            if (Set(ref _alive, value)) RaiseDependent(nameof(StatusText));
         }
     }
 
@@ -139,23 +153,107 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public int Width => _world.Width;
-
-    public int Height => _world.Height;
-
-    public int Alive
+    public string BirthText
     {
-        get => _alive;
-        private set
+        get => _birthText;
+        set => Set(ref _birthText, value);
+    }
+
+    public string SurviveText
+    {
+        get => _surviveText;
+        set => Set(ref _surviveText, value);
+    }
+
+    public int NewWidth
+    {
+        get => _newWidth;
+        set => Set(ref _newWidth, Math.Clamp(value, 1, AbiConstants.MaxDim));
+    }
+
+    public int NewHeight
+    {
+        get => _newHeight;
+        set => Set(ref _newHeight, Math.Clamp(value, 1, AbiConstants.MaxDim));
+    }
+
+    /// <summary>Transient message for the status bar (imports, rebuilds, ...).</summary>
+    public string? Notice
+    {
+        get => _notice;
+        private set => Set(ref _notice, value);
+    }
+
+    public GridTopology Topology
+    {
+        get => _world.Topology;
+        set
         {
-            if (Set(ref _alive, value)) RaiseDependent(nameof(StatusText));
+            _world.Topology = value;  // hot switch: state survives (appendix A.1)
+            OnPropertyChanged();
+            RaiseDependent(nameof(StatusText));
         }
     }
+
+    public string TopologyLabel => Topology == GridTopology.Torus ? "环形" : "有界";
+
+    public ICommand ToggleTopologyCommand { get; private set; } = null!;
 
     public string StatusText
         => $"代 {Generation:N0} ｜ 存活 {Alive:N0} ｜ {_world.Width}×{_world.Height} ｜ "
          + $"步进 {StepMs:F2} ms ｜ "
          + (IsRunning ? $"播放中 {Speed:N0} 代/秒" : "已暂停");
+
+    // ---- commands --------------------------------------------------------
+
+    public ICommand ToggleRunCommand { get; }
+
+    public ICommand StepCommand { get; }
+
+    public ICommand ZoomInCommand { get; }
+
+    public ICommand ZoomOutCommand { get; }
+
+    public ICommand FitViewCommand { get; }
+
+    public ICommand ClearCommand { get; }
+
+    public ICommand RandomizeCommand { get; }
+
+    public ICommand ApplyPatternCommand { get; }
+
+    public ICommand ApplyRuleCommand { get; }
+
+    public ICommand NewWorldCommand { get; }
+
+    public ICommand SaveRleCommand { get; }
+
+    public ICommand OpenRleCommand { get; }
+
+    /// <summary>Storage root for the save/open dialogs; the view sets it.</summary>
+    public Func<Task<IStorageProvider?>> StorageProviderFactory { get; set; } =
+        () => Task.FromResult<IStorageProvider?>(null);
+
+    // ---- behaviour -------------------------------------------------------
+
+    public void Redraw()
+    {
+        Alive = _world.Stats().Alive;
+        _renderer.Draw(_world, Palette);
+        if (!ReferenceEquals(_renderer.Bitmap, _canvasBitmap))
+        {
+            _canvasBitmap = _renderer.Bitmap;
+            OnPropertyChanged(nameof(CanvasBitmap));
+        }
+    }
+
+    public void ZoomAtCentre(double factor)
+    {
+        var size = _canvas.CanvasSize;
+        _canvas.ZoomAt(new Avalonia.Point(size.Width / 2, size.Height / 2), factor);
+    }
+
+    public void ZoomAt(Avalonia.Point screen, double factor) => _canvas.ZoomAt(screen, factor);
 
     private void ToggleRun()
     {
@@ -178,6 +276,169 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Redraw();
     }
 
+    private void ApplySelectedPattern()
+    {
+        if (_selectedPattern is null) return;
+        var doc = RleCodec.Decode(_selectedPattern.Rle);
+        var x = (_world.Width - doc.Width) / 2;
+        var y = (_world.Height - doc.Height) / 2;
+        _world.FromRleAt(_selectedPattern.Rle, Math.Max(x, 0), Math.Max(y, 0));
+        Notice = $"已放置图案「{_selectedPattern.Name}」于 ({Math.Max(x, 0)}, {Math.Max(y, 0)})";
+        Redraw();
+    }
+
+    private void ApplyRule()
+    {
+        if (!TryParseMask(BirthText, out var birth) || !TryParseMask(SurviveText, out var survive))
+        {
+            Notice = "规则掩码只能是 0..8 的数字串，例如 B=3、S=23";
+            return;
+        }
+
+        // Masks live in EcosimConfig, so a rule change rebuilds the world; the
+        // current cells travel along as RLE.
+        var snapshot = _world.ToRle();
+        var config = WorldConfig.Default(_world.Width, _world.Height) with
+        {
+            BirthMask = birth,
+            SurviveMask = survive,
+            Topology = _world.Topology,
+        };
+        Rebuild(config);
+        _world.FromRle(snapshot);
+        Notice = $"规则已切换为 B{BirthText}/S{SurviveText}";
+        Redraw();
+    }
+
+    private void NewWorld()
+    {
+        var config = WorldConfig.Default(NewWidth, NewHeight) with
+        {
+            BirthMask = ParseMaskOrLife(BirthText),
+            SurviveMask = ParseMaskOrLife(SurviveText, isSurvive: true),
+        };
+        Rebuild(config);
+        _world.Randomize(new SeedConfig
+        {
+            Species = 1,
+            DensityPermille = 220,
+            Seed = unchecked((ulong)Environment.TickCount64) | 1,
+        });
+        Notice = $"已新建 {NewWidth}×{NewHeight} 世界";
+        _canvas.Fit();
+        Redraw();
+    }
+
+    private void Rebuild(WorldConfig config)
+    {
+        var wasRunning = _clock.IsRunning;
+        _clock.Stop();
+        _clock.Dispose();
+        _world.Dispose();
+
+        _world = CreateWorld(config.Width, config.Height, config);
+        _canvas = new CanvasViewModel(_world);
+        OnPropertyChanged(nameof(Canvas));
+        _clock = CreateClock();
+        if (wasRunning) _clock.Start();
+        IsRunning = wasRunning;
+        Generation = 0;
+    }
+
+    private World CreateWorld(int width, int height, WorldConfig config)
+    {
+        var world = new World(config with { Width = width, Height = height });
+        world.Randomize(new SeedConfig
+        {
+            Species = 1,
+            DensityPermille = 220,
+            Seed = unchecked((ulong)Environment.TickCount64) | 1,
+        });
+        return world;
+    }
+
+    private SimClock CreateClock()
+    {
+        var clock = new SimClock(_world, _speed);
+        clock.Tick += OnTick;
+        return clock;
+    }
+
+    private async Task SaveRleAsync()
+    {
+        var provider = await StorageProviderFactory().ConfigureAwait(true);
+        if (provider is null) return;
+        var file = await provider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "导出 RLE",
+            SuggestedFileName = "ecosim.rle",
+        }).ConfigureAwait(true);
+        if (file is null) return;
+
+        await using var stream = await file.OpenWriteAsync().ConfigureAwait(true);
+        await using var writer = new StreamWriter(stream);
+        await writer.WriteAsync(_world.ToRle()).ConfigureAwait(true);
+        Notice = $"已导出到 {file.Name}";
+    }
+
+    private async Task OpenRleAsync()
+    {
+        var provider = await StorageProviderFactory().ConfigureAwait(true);
+        if (provider is null) return;
+        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "导入 RLE",
+            AllowMultiple = false,
+        }).ConfigureAwait(true);
+        if (files.Count == 0) return;
+
+        await using var stream = await files[0].OpenReadAsync().ConfigureAwait(true);
+        using var reader = new StreamReader(stream);
+        var text = await reader.ReadToEndAsync().ConfigureAwait(true);
+
+        try
+        {
+            var doc = RleCodec.Decode(text);
+            if (doc.Width > _world.Width || doc.Height > _world.Height)
+            {
+                // Appendix A.4.3: rebuild at the saved size instead of clipping.
+                var config = WorldConfig.Default(Math.Max(doc.Width, 64), Math.Max(doc.Height, 64)) with
+                {
+                    BirthMask = ParseMaskOrLife(BirthText),
+                    SurviveMask = ParseMaskOrLife(SurviveText, isSurvive: true),
+                };
+                Rebuild(config);
+                _world.Clear();
+                Notice = $"已按存档尺寸重建 {_world.Width}×{_world.Height}";
+            }
+            _world.FromRle(text);
+            _canvas.Fit();
+            Redraw();
+        }
+        catch (FormatException ex)
+        {
+            Notice = $"RLE 解析失败：{ex.Message}";
+        }
+    }
+
+    private static bool TryParseMask(string text, out byte[] mask)
+    {
+        mask = new byte[9];
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0) return false;
+        foreach (var c in trimmed)
+        {
+            if (c < '0' || c > '8') return false;
+            mask[c - '0'] = 1;
+        }
+        return true;
+    }
+
+    private static byte[] ParseMaskOrLife(string text, bool isSurvive = false)
+        => TryParseMask(text, out var mask)
+            ? mask
+            : (isSurvive ? new byte[] { 0, 0, 1, 1, 0, 0, 0, 0, 0 }
+                         : new byte[] { 0, 0, 0, 1, 0, 0, 0, 0, 0 });
 
     private void OnTick(object? sender, TickEventArgs e)
     {
