@@ -29,17 +29,30 @@
         <NumericUpDown x:Name="SpeedBox" Value="{Binding Speed}" Minimum="1" Maximum="100000"
                        Increment="5" FormatString="0" Width="120" />
 
-        <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Margin="18,0,0,0"
+        <Button Content="＋" Command="{Binding ZoomInCommand}" ToolTip.Tip="放大" />
+        <Button Content="－" Command="{Binding ZoomOutCommand}" ToolTip.Tip="缩小" />
+        <Button Content="⤢ 适应" Command="{Binding FitViewCommand}" ToolTip.Tip="适应窗口" />
+
+        <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Margin="12,0,0,0"
                    FontFamily="Consolas,Menlo,monospace" />
       </StackPanel>
     </Border>
 
-    <!-- 画布在 milestone M1 task 11 接入；M0 先证明时钟与引擎真的在跑 -->
-    <Grid>
-      <Border Background="#0F1216" Margin="12" CornerRadius="4" />
-      <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.55"
-                 TextWrapping="Wrap" TextAlignment="Center"
-                 Text="画布将在 M1 task 11 接入&#10;现在点击上方“播放”，观察上方“代”数与步进耗时" />
+    <Border DockPanel.Dock="Bottom" Padding="10,6" BorderThickness="0,1,0,0"
+            BorderBrush="#2A2F36" Background="#1A1E23">
+      <TextBlock x:Name="HoverText" Opacity="0.8"
+                 Text="拖拽绘制 · 中键或右键拖拽平移 · 滚轮缩放" />
+    </Border>
+
+    <!-- 画布：一像素一格的位图，靠 RenderTransform 做缩放平移 -->
+    <Grid x:Name="CanvasHost" ClipToBounds="True" Background="#0F1216"
+          PointerPressed="OnCanvasPointerPressed"
+          PointerMoved="OnCanvasPointerMoved"
+          PointerReleased="OnCanvasPointerReleased"
+          PointerWheelChanged="OnCanvasWheel">
+      <Image x:Name="CanvasImage" Stretch="None" HorizontalAlignment="Left"
+             VerticalAlignment="Top"
+             RenderOptions.BitmapInterpolationMode="None" />
     </Grid>
 
   </DockPanel>
