@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <stdexcept>
 
@@ -131,6 +132,35 @@ int32_t World::paint(const EcosimPaintOp* ops, int32_t count) {
   // The scratch buffer must not hold a stale generation: without this, the next
   // step would read cur (fine) but a later swap could expose pre-paint data.
   grid_.copy_cur_to_nxt();
+  return ECOSIM_OK;
+}
+
+int32_t World::render_frame(uint8_t* bgra, int32_t row_pitch, const EcosimPalette* palette) const {
+  if (bgra == nullptr || palette == nullptr) {
+    set_error("render_frame 需要非空缓冲与调色盘");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (palette->struct_size < static_cast<int32_t>(sizeof(EcosimPalette))) {
+    set_error("EcosimPalette.struct_size 太小");
+    return ECOSIM_ERR_SIZE;
+  }
+  const int32_t min_pitch = grid_.w() * 4;
+  if (row_pitch < min_pitch) {
+    char msg[128];
+    std::snprintf(msg, sizeof(msg), "row_pitch %d 小于网格宽度所需 %d 字节", row_pitch, min_pitch);
+    set_error(msg);
+    return ECOSIM_ERR_INVALID;
+  }
+
+  const std::vector<uint8_t>& species = grid_.cur().species;
+  for (int32_t y = 0; y < grid_.h(); ++y) {
+    const uint8_t* row = species.data() + static_cast<size_t>(y) * grid_.w();
+    uint8_t* out = bgra + static_cast<size_t>(y) * row_pitch;
+    for (int32_t x = 0; x < grid_.w(); ++x) {
+      const uint32_t colour = palette->cell_bgra[row[x] % ECOSIM_MAX_SPECIES];
+      std::memcpy(out + static_cast<size_t>(x) * 4, &colour, sizeof(colour));
+    }
+  }
   return ECOSIM_OK;
 }
 

@@ -85,6 +85,31 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    /// <summary>Renders straight into memory the caller owns. The app uses this
+    /// to write into a locked bitmap's back buffer with zero copies.</summary>
+    public void RenderToPointer(IntPtr bgra, int rowPitch, in Palette palette)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            var dto = palette.ToDto();
+            ErrorTranslation.ThrowIfFailed("render_frame",
+                NativeMethods.ecosim_render_frame(handle, bgra, rowPitch, ref dto));
+        }
+    }
+
+    public unsafe void RenderFrame(Memory<byte> destination, int rowPitch, in Palette palette)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            using var pin = destination.Pin();
+            var dto = palette.ToDto();
+            ErrorTranslation.ThrowIfFailed("render_frame",
+                NativeMethods.ecosim_render_frame(handle, (IntPtr)pin.Pointer, rowPitch, ref dto));
+        }
+    }
+
     public ulong Hash()
     {
         lock (_gate)

@@ -27,6 +27,10 @@ class World {
   /// not be overwritten by the first step that follows.
   int32_t paint(const EcosimPaintOp* ops, int32_t count);
 
+  /// Writes one BGRA8 pixel per cell into the caller's buffer, `row_pitch`
+  /// bytes per row. The caller owns the memory; this never allocates.
+  int32_t render_frame(uint8_t* bgra, int32_t row_pitch, const EcosimPalette* palette) const;
+
   uint64_t generation() const { return generation_; }
   const EcosimConfig& config() const { return cfg_; }
   int32_t topology() const { return cfg_.topology; }

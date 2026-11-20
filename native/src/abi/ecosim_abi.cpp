@@ -142,8 +142,12 @@ int32_t ecosim_world_grid_view(const EcosimWorld* world, EcosimGridView* out) {
   return ECOSIM_OK;
 }
 
-int32_t ecosim_render_frame(const EcosimWorld*, uint8_t*, int32_t, const EcosimPalette*) {
-  return not_implemented("ecosim_render_frame");
+int32_t ecosim_render_frame(const EcosimWorld* world, uint8_t* bgra, int32_t row_pitch,
+                            const EcosimPalette* palette) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  return w->render_frame(bgra, row_pitch, palette);
 }
 
 int32_t ecosim_paint(EcosimWorld* world, const EcosimPaintOp* ops, int32_t count) {

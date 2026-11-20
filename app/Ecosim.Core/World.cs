@@ -38,6 +38,17 @@ public sealed class World : IDisposable
     /// runs agree cell for cell.</summary>
     public ulong Hash() => _native.Hash();
 
+    /// <summary>Renders into the buffer, resizing it first if the world changed.</summary>
+    public void RenderFrame(FrameBuffer buffer, in Palette palette)
+    {
+        buffer.Ensure(Width, Height);
+        _native.RenderFrame(buffer.AsMemory(), buffer.RowPitch, palette);
+    }
+
+    /// <summary>Zero-copy variant for a locked bitmap's back buffer.</summary>
+    public void RenderInto(IntPtr bgra, int rowPitch, in Palette palette)
+        => _native.RenderToPointer(bgra, rowPitch, palette);
+
     public string ToRle() => _native.ToRle();
 
     /// <summary>Places the pattern with its top-left corner at (0, 0).</summary>

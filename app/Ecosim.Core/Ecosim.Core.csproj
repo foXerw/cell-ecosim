@@ -8,6 +8,9 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <RootNamespace>Ecosim.Core</RootNamespace>
+    <!-- Pinning a frame buffer to hand its address to the engine is the one
+         place this project needs a pointer. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
