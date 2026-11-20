@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "core/kernel_fast.h"
+#include "core/species.h"
 #include "util/error.h"
 #include "util/rng.h"
 
@@ -174,9 +175,10 @@ int32_t World::clear(int32_t fill_species) {
     return ECOSIM_ERR_INVALID;
   }
   Planes& cur = grid_.cur();
+  const uint16_t energy = species_of(fill_species).initial_energy;
   std::fill(cur.species.begin(), cur.species.end(), static_cast<uint8_t>(fill_species));
   std::fill(cur.age.begin(), cur.age.end(), uint16_t{0});
-  std::fill(cur.energy.begin(), cur.energy.end(), uint16_t{0});
+  std::fill(cur.energy.begin(), cur.energy.end(), energy);
   std::fill(cur.resource.begin(), cur.resource.end(), uint8_t{0});
   grid_.copy_cur_to_nxt();
   return ECOSIM_OK;
@@ -202,13 +204,14 @@ int32_t World::randomize(const EcosimSeedConfig& seed_cfg) {
   }
 
   const uint64_t seed = seed_cfg.seed != 0 ? seed_cfg.seed : cfg_.rng_seed;
+  const uint16_t energy = species_of(seed_cfg.species).initial_energy;
   Planes& cur = grid_.cur();
   const size_t n = grid_.count();
   for (size_t i = 0; i < n; ++i) {
     const bool alive = (rng::draw(seed, generation_, i) % 1000ull) < seed_cfg.density_permille;
     cur.species[i] = alive ? static_cast<uint8_t>(seed_cfg.species) : 0;
     cur.age[i] = 0;
-    cur.energy[i] = 0;
+    cur.energy[i] = alive ? energy : 0;
     cur.resource[i] = 0;
   }
   grid_.copy_cur_to_nxt();
