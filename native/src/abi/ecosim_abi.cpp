@@ -142,8 +142,11 @@ int32_t ecosim_render_frame(const EcosimWorld*, uint8_t*, int32_t, const EcosimP
   return not_implemented("ecosim_render_frame");
 }
 
-int32_t ecosim_paint(EcosimWorld*, const EcosimPaintOp*, int32_t) {
-  return not_implemented("ecosim_paint");
+int32_t ecosim_paint(EcosimWorld* world, const EcosimPaintOp* ops, int32_t count) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  return w->paint(ops, count);
 }
 
 int32_t ecosim_clear(EcosimWorld*, int32_t) { return not_implemented("ecosim_clear"); }

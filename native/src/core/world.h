@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "core/grid.h"
+#include "core/kernel.h"
 #include "ecosim_abi.h"
 
 namespace ecosim {
@@ -18,6 +19,12 @@ class World {
   int32_t step(int32_t n_steps);
   int32_t set_topology(int32_t topology);
 
+  /// Writes half-open rectangles into the current buffer. Validated as a whole
+  /// before anything is written, so one bad op cannot half-apply a stroke.
+  /// The next buffer is resynchronised afterwards: painting while paused must
+  /// not be overwritten by the first step that follows.
+  int32_t paint(const EcosimPaintOp* ops, int32_t count);
+
   uint64_t generation() const { return generation_; }
   const EcosimConfig& config() const { return cfg_; }
   int32_t topology() const { return cfg_.topology; }
@@ -30,6 +37,7 @@ class World {
 
  private:
   EcosimConfig cfg_;
+  RuleTable rules_;
   Grid grid_;
   uint64_t generation_ = 0;
 };

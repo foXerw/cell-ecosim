@@ -43,7 +43,7 @@ bool World::validate(const EcosimConfig& cfg, char* why, int32_t cap) {
   return true;
 }
 
-World::World(const EcosimConfig& cfg) : cfg_(cfg) {
+World::World(const EcosimConfig& cfg) : cfg_(cfg), rules_(RuleTable::from_config(cfg)) {
   char why[256];
   if (!validate(cfg, why, static_cast<int32_t>(sizeof(why)))) {
     throw std::invalid_argument(why);
@@ -68,11 +68,56 @@ int32_t World::step(int32_t n_steps) {
   if (n_steps == 0) return ECOSIM_OK;
 
   for (int32_t i = 0; i < n_steps; ++i) {
-    // Milestone M1 task 4 replaces this with kernel::step_reference().
-    grid_.copy_cur_to_nxt();
+    kernel::step_birsurv(grid_.cur(), grid_.nxt(), grid_.w(), grid_.h(), rules_, cfg_.topology);
     grid_.swap_buffers();
   }
   generation_ += static_cast<uint64_t>(n_steps);
+  return ECOSIM_OK;
+}
+
+int32_t World::paint(const EcosimPaintOp* ops, int32_t count) {
+  if (ops == nullptr || count < 0) {
+    set_error(count == 0 ? "paint 需要至少一个 op" : "ops 为 NULL 或 count 为负");
+    return ECOSIM_ERR_INVALID;
+  }
+
+  // Validate everything first: a stroke is applied atomically or not at all.
+  for (int32_t i = 0; i < count; ++i) {
+    const EcosimPaintOp& op = ops[i];
+    if (op.struct_size < static_cast<int32_t>(sizeof(EcosimPaintOp))) {
+      set_error("EcosimPaintOp.struct_size 太小");
+      return ECOSIM_ERR_SIZE;
+    }
+    if (op.species < 0 || op.species >= ECOSIM_MAX_SPECIES) {
+      char msg[128];
+      std::snprintf(msg, sizeof(msg), "species %d 不在 0..%d 范围内", op.species,
+                    ECOSIM_MAX_SPECIES - 1);
+      set_error(msg);
+      return ECOSIM_ERR_INVALID;
+    }
+    if (op.x0 < 0 || op.y0 < 0 || op.x1 > grid_.w() || op.y1 > grid_.h() || op.x0 >= op.x1 ||
+        op.y0 >= op.y1) {
+      char msg[160];
+      std::snprintf(msg, sizeof(msg),
+                    "矩形 [%d,%d)x[%d,%d) 超出网格 %dx%d（区间为半开，需 x0<x1 且 y0<y1）", op.x0,
+                    op.x1, op.y0, op.y1, grid_.w(), grid_.h());
+      set_error(msg);
+      return ECOSIM_ERR_RANGE;
+    }
+  }
+
+  std::vector<uint8_t>& species = grid_.cur().species;
+  for (int32_t i = 0; i < count; ++i) {
+    const EcosimPaintOp& op = ops[i];
+    for (int32_t y = op.y0; y < op.y1; ++y) {
+      uint8_t* row = species.data() + static_cast<size_t>(y) * grid_.w();
+      for (int32_t x = op.x0; x < op.x1; ++x) row[x] = static_cast<uint8_t>(op.species);
+    }
+  }
+
+  // The scratch buffer must not hold a stale generation: without this, the next
+  // step would read cur (fine) but a later swap could expose pre-paint data.
+  grid_.copy_cur_to_nxt();
   return ECOSIM_OK;
 }
 

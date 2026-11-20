@@ -16,6 +16,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 add_library(ecosim SHARED
   src/abi/ecosim_abi.cpp
   src/core/grid.cpp
+  src/core/kernel.cpp
   src/core/world.cpp
   src/util/error.cpp
 )
@@ -36,6 +37,7 @@ set_target_properties(ecosim PROPERTIES
 add_executable(ecosim_tests
   tests/main.cpp
   tests/test_world.cpp
+  tests/test_kernel.cpp
 )
 target_include_directories(ecosim_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 target_link_libraries(ecosim_tests PRIVATE ecosim)
