@@ -9,6 +9,7 @@
 
 #include "core/kernel_fast.h"
 #include "util/error.h"
+#include "util/rng.h"
 
 namespace ecosim {
 
@@ -161,6 +162,76 @@ int32_t World::render_frame(uint8_t* bgra, int32_t row_pitch, const EcosimPalett
       std::memcpy(out + static_cast<size_t>(x) * 4, &colour, sizeof(colour));
     }
   }
+  return ECOSIM_OK;
+}
+
+int32_t World::clear(int32_t fill_species) {
+  if (fill_species < 0 || fill_species >= ECOSIM_MAX_SPECIES) {
+    char msg[96];
+    std::snprintf(msg, sizeof(msg), "species %d 不在 0..%d 范围内", fill_species,
+                  ECOSIM_MAX_SPECIES - 1);
+    set_error(msg);
+    return ECOSIM_ERR_INVALID;
+  }
+  Planes& cur = grid_.cur();
+  std::fill(cur.species.begin(), cur.species.end(), static_cast<uint8_t>(fill_species));
+  std::fill(cur.age.begin(), cur.age.end(), uint16_t{0});
+  std::fill(cur.energy.begin(), cur.energy.end(), uint16_t{0});
+  std::fill(cur.resource.begin(), cur.resource.end(), uint8_t{0});
+  grid_.copy_cur_to_nxt();
+  return ECOSIM_OK;
+}
+
+int32_t World::randomize(const EcosimSeedConfig& seed_cfg) {
+  if (seed_cfg.struct_size < static_cast<int32_t>(sizeof(EcosimSeedConfig))) {
+    set_error("EcosimSeedConfig.struct_size 太小");
+    return ECOSIM_ERR_SIZE;
+  }
+  if (seed_cfg.species < 0 || seed_cfg.species >= ECOSIM_MAX_SPECIES) {
+    char msg[96];
+    std::snprintf(msg, sizeof(msg), "species %d 不在 0..%d 范围内", seed_cfg.species,
+                  ECOSIM_MAX_SPECIES - 1);
+    set_error(msg);
+    return ECOSIM_ERR_INVALID;
+  }
+  if (seed_cfg.density_permille > 1000) {
+    char msg[96];
+    std::snprintf(msg, sizeof(msg), "density %u 超出 0..1000", seed_cfg.density_permille);
+    set_error(msg);
+    return ECOSIM_ERR_INVALID;
+  }
+
+  const uint64_t seed = seed_cfg.seed != 0 ? seed_cfg.seed : cfg_.rng_seed;
+  Planes& cur = grid_.cur();
+  const size_t n = grid_.count();
+  for (size_t i = 0; i < n; ++i) {
+    const bool alive = (rng::draw(seed, generation_, i) % 1000ull) < seed_cfg.density_permille;
+    cur.species[i] = alive ? static_cast<uint8_t>(seed_cfg.species) : 0;
+    cur.age[i] = 0;
+    cur.energy[i] = 0;
+    cur.resource[i] = 0;
+  }
+  grid_.copy_cur_to_nxt();
+  return ECOSIM_OK;
+}
+
+int32_t World::stats(EcosimStats& out) const {
+  if (out.struct_size < static_cast<int32_t>(sizeof(EcosimStats))) {
+    set_error("EcosimStats.struct_size 太小");
+    return ECOSIM_ERR_SIZE;
+  }
+  const Planes& cur = grid_.cur();
+  out.generation = generation_;
+  out.w = grid_.w();
+  out.h = grid_.h();
+  std::memset(out.species_count, 0, sizeof(out.species_count));
+  int32_t alive = 0;
+  for (const uint8_t s : cur.species) {
+    if (s == 0) continue;
+    ++alive;
+    ++out.species_count[s % ECOSIM_MAX_SPECIES];
+  }
+  out.alive_count = alive;
   return ECOSIM_OK;
 }
 

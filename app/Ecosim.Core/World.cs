@@ -34,6 +34,12 @@ public sealed class World : IDisposable
     /// <summary>Applies a whole brush stroke in one call across the border.</summary>
     public void Paint(IReadOnlyList<PaintOp> ops) => _native.Paint(ops);
 
+    public SimStats Stats() => _native.Stats();
+
+    public void Clear(int fillSpecies = 0) => _native.Clear(fillSpecies);
+
+    public void Randomize(in SeedConfig config) => _native.Randomize(config);
+
     /// <summary>FNV-1a over the species plane; the tests use it to prove two
     /// runs agree cell for cell.</summary>
     public ulong Hash() => _native.Hash();

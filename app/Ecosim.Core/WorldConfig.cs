@@ -80,3 +80,12 @@ public record struct SeedConfig
 /// <summary>One half-open rectangle to write. The engine takes an array of
 /// these so a whole brush stroke costs a single call across the border.</summary>
 public readonly record struct PaintOp(int X0, int Y0, int X1, int Y1, int Species);
+
+/// <summary>A snapshot of the population. Immutable on purpose: the UI binds
+/// to it and must never see it change under a binding.</summary>
+public sealed record SimStats(long Generation, int Alive, int Width, int Height,
+                              int[] SpeciesCounts)
+{
+    public int CountOf(int species)
+        => species >= 0 && species < SpeciesCounts.Length ? SpeciesCounts[species] : 0;
+}

@@ -31,6 +31,17 @@ class World {
   /// bytes per row. The caller owns the memory; this never allocates.
   int32_t render_frame(uint8_t* bgra, int32_t row_pitch, const EcosimPalette* palette) const;
 
+  /// Fills the grid with one species (0 = empty) and zeroes age/energy/
+  /// resource. The generation counter is deliberately left alone: clearing the
+  /// board is not rewinding time.
+  int32_t clear(int32_t fill_species);
+
+  /// Stateless per-cell draw (util/rng.h): the same seed and generation give
+  /// the same grid no matter how the work is split across threads.
+  int32_t randomize(const EcosimSeedConfig& seed_cfg);
+
+  int32_t stats(EcosimStats& out) const;
+
   uint64_t generation() const { return generation_; }
   const EcosimConfig& config() const { return cfg_; }
   int32_t topology() const { return cfg_.topology; }

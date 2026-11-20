@@ -110,6 +110,39 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    public SimStats Stats()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            var dto = EcosimStatsDto.Create();
+            ErrorTranslation.ThrowIfFailed("stats", NativeMethods.ecosim_stats(handle, ref dto));
+            return new SimStats((long)dto.generation, dto.alive_count, dto.w, dto.h,
+                                (int[])dto.species_count.Clone());
+        }
+    }
+
+    public void Clear(int fillSpecies)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            ErrorTranslation.ThrowIfFailed("clear",
+                NativeMethods.ecosim_clear(handle, fillSpecies));
+        }
+    }
+
+    public void Randomize(in SeedConfig config)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            var dto = EcosimSeedConfigDto.Create(config);
+            ErrorTranslation.ThrowIfFailed("randomize",
+                NativeMethods.ecosim_randomize(handle, ref dto));
+        }
+    }
+
     public ulong Hash()
     {
         lock (_gate)

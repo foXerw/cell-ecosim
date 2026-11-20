@@ -60,6 +60,7 @@ add_executable(ecosim_tests
   tests/test_rle.cpp
   tests/test_patterns.cpp
   tests/test_render.cpp
+  tests/test_paint.cpp
 )
 target_compile_definitions(ecosim_tests PRIVATE
   ECOSIM_LINK_STATIC=1

@@ -113,16 +113,5 @@ ECOSIM_TEST(grid_view_rejects_undersized_struct) {
   ecosim_world_destroy(w);
 }
 
-ECOSIM_TEST(not_yet_implemented_exports_report_state_error_not_crash) {
-  EcosimConfig cfg = make_config(4, 4);
-  EcosimWorld* w = ecosim_world_create(&cfg);
-  CHECK_TRUE(w != nullptr);
-  if (!w) return;
-
-  EcosimStats stats{};
-  stats.struct_size = sizeof(EcosimStats);
-  CHECK_EQ_i32(ECOSIM_ERR_STATE, ecosim_stats(w, &stats));
-  CHECK_EQ_i32(ECOSIM_ERR_STATE, ecosim_clear(w, 0));
-  CHECK_TRUE(std::strlen(ecosim_last_error()) > 0);
-  ecosim_world_destroy(w);
-}
+// Every export declared in ecosim_abi.h is implemented as of milestone M1;
+// the old "not implemented yet" sentinel test retired with task 10.

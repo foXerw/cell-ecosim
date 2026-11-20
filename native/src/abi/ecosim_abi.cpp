@@ -157,14 +157,33 @@ int32_t ecosim_paint(EcosimWorld* world, const EcosimPaintOp* ops, int32_t count
   return w->paint(ops, count);
 }
 
-int32_t ecosim_clear(EcosimWorld*, int32_t) { return not_implemented("ecosim_clear"); }
-
-int32_t ecosim_randomize(EcosimWorld*, const EcosimSeedConfig*) {
-  return not_implemented("ecosim_randomize");
+int32_t ecosim_clear(EcosimWorld* world, int32_t fill_species) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  return w->clear(fill_species);
 }
 
-int32_t ecosim_stats(const EcosimWorld*, EcosimStats*) {
-  return not_implemented("ecosim_stats");
+int32_t ecosim_randomize(EcosimWorld* world, const EcosimSeedConfig* seed_cfg) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (seed_cfg == nullptr) {
+    ecosim::set_error("seed_cfg 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  return w->randomize(*seed_cfg);
+}
+
+int32_t ecosim_stats(const EcosimWorld* world, EcosimStats* out) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (out == nullptr) {
+    ecosim::set_error("out 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  return w->stats(*out);
 }
 
 uint64_t ecosim_hash(const EcosimWorld* world) {
