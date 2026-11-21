@@ -98,6 +98,14 @@ public sealed class World : IDisposable
 
     public IReadOnlyList<SimEvent> PollEvents(int max = 64) => _native.PollEvents(max);
 
+    public int SnapshotCount() => _native.SnapshotCount();
+
+    public long SnapshotGeneration(int index) => _native.SnapshotGeneration(index);
+
+    public int SnapshotCapture() => _native.SnapshotCapture();
+
+    public void SnapshotRestore(int index) => _native.SnapshotRestore(index);
+
     /// <summary>
     /// Captures exactly the planes the palette will ask for. The render path and
     /// the capture path used to agree by convention, and getting that wrong

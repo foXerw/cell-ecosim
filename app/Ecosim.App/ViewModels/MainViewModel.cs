@@ -23,6 +23,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private CanvasViewModel _canvas;
     private WriteableBitmap? _canvasBitmap;
 
+    private bool _reviewing;
     private int _alive;
     private long _generation;
     private long _paintedGeneration = -1;
@@ -39,9 +40,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public MainViewModel()
     {
         _world = CreateFresh(StartupConfig());
+        Timeline = new TimelineModel(_world);
         _canvas = new CanvasViewModel(_world);
         _canvas.LayerChanged += (_, _) => SyncLayer();
         Params = new ParamsModel(_world);
+        Timeline = new TimelineModel(_world);
+        _reviewing = false;
+        OnPropertyChanged(nameof(Timeline));
+        RaiseDependent(nameof(ReviewLabel));
         _clock = CreateClock();
         ApplyStartupLayer();
 
@@ -57,6 +63,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         // unchanged generation costs a texture upload and buys nothing.
         _pump.Tick += (_, _) =>
         {
+            if (_reviewing) return;
             var snap = _clock.LatestSnapshot;
             if (snap is not null && snap.Generation != _paintedGeneration) PaintSnapshot(snap);
         };
@@ -100,6 +107,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         NewWorldCommand = new RelayCommand(NewWorld);
         SaveRleCommand = new AsyncRelayCommand(_ => SaveRleAsync());
         OpenRleCommand = new AsyncRelayCommand(_ => OpenRleAsync());
+        ExitReviewCommand = new RelayCommand(ExitReview);
         ToggleTopologyCommand = new RelayCommand(() =>
         {
             Topology = Topology == GridTopology.Torus ? GridTopology.Bounded : GridTopology.Torus;
@@ -112,6 +120,52 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public World World => _world;
 
     public CanvasViewModel Canvas => _canvas;
+
+    /// <summary>View over the engine's snapshot ring (it stores nothing).</summary>
+    public TimelineModel Timeline { get; private set; }
+
+    public bool IsReviewing => Timeline.IsReviewing;
+
+    /// <summary>Dragging the scrubber pauses the clock first: reviewing a
+    /// history frame while the simulation keeps stepping would overwrite it.</summary>
+    public double ScrubIndex
+    {
+        get => Math.Max(0, Timeline.Index);
+        set => ScrubTo((int)Math.Round(value));
+    }
+
+    public ICommand ExitReviewCommand { get; private set; } = null!;
+
+    private void ScrubTo(int index)
+    {
+        if (!_reviewing && _clock.IsRunning)
+        {
+            _clock.Stop();
+            _pump.Stop();
+            IsRunning = false;
+        }
+        _reviewing = true;
+        if (!Timeline.Restore(index)) return;
+        Redraw();
+        RaiseDependent(nameof(ScrubIndex));
+        RaiseDependent(nameof(IsReviewing));
+        RaiseDependent(nameof(ReviewLabel));
+    }
+
+    private void ExitReview()
+    {
+        _reviewing = false;
+        Timeline.ExitReview();
+        Redraw();
+        Notice = "已退出回放，回到当前状态";
+        RaiseDependent(nameof(ScrubIndex));
+        RaiseDependent(nameof(IsReviewing));
+        RaiseDependent(nameof(ReviewLabel));
+    }
+
+    public string ReviewLabel => Timeline.IsReviewing
+        ? $"回放中：第 {Timeline.CurrentGeneration:N0} 代"
+        : "实时";
 
     /// <summary>Sliders generated from the engine's parameter table.</summary>
     public ParamsModel Params { get; private set; }
@@ -472,6 +526,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _canvas = new CanvasViewModel(_world);
         _canvas.LayerChanged += (_, _) => SyncLayer();
         Params = new ParamsModel(_world);
+        Timeline = new TimelineModel(_world);
+        _reviewing = false;
+        OnPropertyChanged(nameof(Timeline));
+        RaiseDependent(nameof(ReviewLabel));
         OnPropertyChanged(nameof(Canvas));
         OnPropertyChanged(nameof(Params));
         RefreshHistory();

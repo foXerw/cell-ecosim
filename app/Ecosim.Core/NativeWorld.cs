@@ -319,6 +319,45 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    public int SnapshotCount()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            return Math.Max(0, NativeMethods.ecosim_snapshot_count(handle));
+        }
+    }
+
+    public long SnapshotGeneration(int index)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            ErrorTranslation.ThrowIfFailed("snapshot_info",
+                NativeMethods.ecosim_snapshot_info(handle, index, out var generation));
+            return (long)generation;
+        }
+    }
+
+    public int SnapshotCapture()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            return NativeMethods.ecosim_snapshot_capture(handle);
+        }
+    }
+
+    public void SnapshotRestore(int index)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            ErrorTranslation.ThrowIfFailed("snapshot_restore",
+                NativeMethods.ecosim_snapshot_restore(handle, index));
+        }
+    }
+
     /// <summary>Drains the engine's event queue (oldest first).</summary>
     public IReadOnlyList<SimEvent> PollEvents(int max = 64)
     {

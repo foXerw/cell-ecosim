@@ -47,6 +47,19 @@
 
     <Border DockPanel.Dock="Bottom" Padding="10,6" BorderThickness="0,1,0,0"
             BorderBrush="#2A2F36" Background="#1A1E23">
+      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+        <TextBlock Text="时间轴" VerticalAlignment="Center" Opacity="0.75" />
+        <Slider Width="360" Minimum="0" Maximum="{Binding Timeline.MaximumIndex}"
+                Value="{Binding ScrubIndex, Mode=TwoWay}"
+                ToolTip.Tip="拖动会暂停模拟并回到那一代" />
+        <TextBlock Text="{Binding ReviewLabel}" VerticalAlignment="Center"
+                   FontFamily="Consolas,Menlo,monospace" />
+        <Button Content="退出回放" Command="{Binding ExitReviewCommand}" />
+      </StackPanel>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Padding="10,6" BorderThickness="0,1,0,0"
+            BorderBrush="#2A2F36" Background="#1A1E23">
       <StackPanel Orientation="Horizontal" Spacing="18">
         <TextBlock Text="{Binding StatusText}" FontFamily="Consolas,Menlo,monospace" />
         <TextBlock x:Name="HoverText" Opacity="0.85" />
