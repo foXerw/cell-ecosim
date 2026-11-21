@@ -100,6 +100,20 @@ Avalonia 侧位图是**一格一像素**，缩放平移靠 `RenderTransform` 的
   Gosper 枪 / 脉冲星 / LWSS 没通过，已移除，等一个可校验的来源（见 m1-checklist）。
 - `ecosim_from_rle_at` 支持偏移放置；超出网格裁剪并给出中文警告（不是错误）。
 
+## 生态管线为什么不是"直接分带"
+
+六阶段里有三个阶段会改**别的格子**（feed 改猎物、reproduce 往空格放子代、disperse 搬进空格）。
+直接按行带并行会让结果依赖带划分，所以：
+
+1. **候选阶段**并行、只读上一阶段缓冲，产出动作列表（`FeedAction`/`ReproAction`/`MoveAction`），
+   每带一份，带序拼接即为全局格索引顺序；
+2. **apply 阶段**单线程按该顺序结算，用 `taken`/`drained` 位图解决冲突；
+   首选格子被占时会找下一个空格，而不是丢掉这次动作。
+
+per-cell 的阶段（sense、metabolise、regrow）直接按带并行。
+结果与线程数无关，由 `ecosystem_result_does_not_depend_on_configured_threads` 盯住；
+实测 2048² 混合食物网因此从 214 ms/代 降到 40.9 ms/代（5.2×）。
+
 ## 如何扩展
 
 - **加一个物种（M2）**：改 native 物种表 + 参数描述表；调色盘槽位已预留 16 个；

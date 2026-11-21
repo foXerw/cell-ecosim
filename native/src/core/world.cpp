@@ -78,8 +78,8 @@ int32_t World::step(int32_t n_steps) {
   const int32_t band_rows = parallel::band_rows_for(grid_.h(), pool_->size());
   for (int32_t i = 0; i < n_steps; ++i) {
     if (cfg_.mode == ECOSIM_MODE_ECOSYSTEM) {
-      // The stages mutate the buffer they read, so this path stays single
-      // threaded (docs/architecture.md). The B/S path keeps its band split.
+      // The pipeline bands its own work internally (candidate lists, then a
+      // serial apply in cell order) - see rules/ecosystem.cpp.
       run_ecosystem(*this);
     } else {
       // Bands write disjoint row ranges of nxt and only read cur, so they can

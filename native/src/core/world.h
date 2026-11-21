@@ -65,6 +65,9 @@ class World {
   const Grid& grid() const { return grid_; }
   const RuleTable& rules() const { return rules_; }
 
+  /// The band workers, shared by the B/S kernel and the ecosystem pipeline.
+  parallel::Pool& pool() { return *pool_; }
+
   static bool validate(const EcosimConfig& cfg, char* why, int32_t cap);
 
  private:
