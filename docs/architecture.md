@@ -125,6 +125,19 @@ per-cell 的阶段（sense、metabolise、regrow）直接按带并行。
 需要被两边用的成员要么 inline 在头文件里（如 `World::record_generation`、`Pool& World::pool()`），
 要么放在依赖链的下游。
 
+## 分析面板的数据从哪来
+
+| 面板 | 数据来源 | 频率 |
+|---|---|---|
+| 叠加层 | `EcosimPalette.layer` + `ecosim_render_planes`（快照渲染，不碰引擎锁） | 每帧 |
+| 种群曲线 | `ecosim_history_count/get`：普查由内核/管线顺手算出，零额外扫表 | 4 Hz |
+| 能量分布 | 托管侧从带热力的快照算（`World.EnergyHistogram`） | 4 Hz |
+| 事件日志 | `EventQueue`（native 判定，带滞回），**拉取**而非回调 | 4 Hz |
+| 时间轴 | `SnapshotRing`（native 唯一存储，RLE 压缩 + 指数抽取） | 拖动时 |
+
+面板刷新有预算测试盯着（`AnalysisCostTests`：512² 一次刷新 < 40 ms），
+因为它跑在 UI 线程上——"顺手画个图"变成卡顿是这类应用最常见的自伤。
+
 ## 如何扩展
 
 - **加一个物种（M2）**：改 native 物种表 + 参数描述表；调色盘槽位已预留 16 个；

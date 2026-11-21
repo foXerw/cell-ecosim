@@ -389,10 +389,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private const int MaxEventLines = 100;
 
+    /// <summary>Energy distribution, recomputed on the same slow beat.</summary>
+    public int[]? Histogram { get; private set; }
+
     public void RefreshHistory()
     {
         HistorySamples = _world.History(600);
         OnPropertyChanged(nameof(HistorySamples));
+
+        var board = _world.Capture(includeHeat: true);
+        Histogram = _world.EnergyHistogram(12, board);
+        OnPropertyChanged(nameof(Histogram));
 
         var fresh = _world.PollEvents();
         if (fresh.Count == 0) return;

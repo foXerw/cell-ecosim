@@ -91,6 +91,41 @@ public sealed class World : IDisposable
 
     public SpeciesSnapshot Capture(bool includeHeat = false) => _native.Capture(includeHeat);
 
+    /// <summary>
+    /// Distribution of normalised energy across the living cells, computed from
+    /// a snapshot on the managed side: the engine already keeps energy per
+    /// cell, and this is a chart, not a simulation input, so it costs nothing
+    /// in the step loop.
+    /// </summary>
+    public int[] EnergyHistogram(int buckets = 12, SpeciesSnapshot? snapshot = null)
+    {
+        var count = Math.Clamp(buckets, 2, 64);
+        var histogram = new int[count];
+        var board = snapshot ?? Capture(includeHeat: true);
+        if (board.Energy is null || board.Resource is null) return histogram;
+
+        for (var i = 0; i < board.Species.Length; ++i)
+        {
+            var species = board.Species[i];
+            if (species == 0) continue;
+            var energy = BitConverter.ToUInt16(board.Energy, i * 2);
+            // Species differ in their ceiling by 3x, so normalise before
+            // bucketing or the algae would always pile into the first bar.
+            var share = (int)(energy * count / (long)SpeciesCeiling(species));
+            histogram[Math.Clamp(share, 0, count - 1)]++;
+        }
+        return histogram;
+    }
+
+    /// <summary>Energy ceiling per species, mirroring the engine's table.</summary>
+    private static int SpeciesCeiling(int species) => species switch
+    {
+        1 => 240,
+        2 => 400,
+        3 => 800,
+        _ => 240,
+    };
+
     /// <summary>The last `count` generations' censuses, oldest first.</summary>
     public IReadOnlyList<HistorySample> History(int count = 600) => _native.History(count);
 
