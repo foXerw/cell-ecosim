@@ -38,12 +38,14 @@ public class WorldTests
     }
 
     [Fact]
-    public void Ecosystem_mode_is_not_available_yet_and_says_so()
+    public void Ecosystem_mode_creates_a_world_and_runs_the_pipeline()
     {
-        var cfg = WorldConfig.Default(8, 8);
-        cfg = cfg with { Mode = RuleMode.Ecosystem };
-        var ex = Assert.Throws<EcosimException>(() => new World(cfg));
-        Assert.Contains("M2", ex.Message);
+        var cfg = WorldConfig.Default(48, 48) with { Mode = RuleMode.Ecosystem };
+        using var world = new World(cfg);
+        world.Randomize(new SeedConfig { Species = 1, DensityPermille = 300, Seed = 5 });
+        world.Step(10);
+        Assert.Equal(10, world.Generation);
+        Assert.True(world.Stats().Alive >= 0);
     }
 
     [Fact]

@@ -27,10 +27,12 @@ add_library(ecosim_core STATIC
   src/core/kernel.cpp
   src/core/kernel_fast.cpp
   src/core/parallel.cpp
+  src/core/params.cpp
   src/core/render.cpp
   src/core/rle.cpp
   src/core/species.cpp
   src/core/world.cpp
+  src/rules/ecosystem.cpp
   src/util/error.cpp
 )
 target_include_directories(ecosim_core
@@ -64,6 +66,7 @@ add_executable(ecosim_tests
   tests/test_render.cpp
   tests/test_paint.cpp
   tests/test_species.cpp
+  tests/test_ecosystem.cpp
 )
 target_compile_definitions(ecosim_tests PRIVATE
   ECOSIM_LINK_STATIC=1

@@ -35,6 +35,10 @@ class Grid {
   const Planes& cur() const { return cur_; }
   const Planes& nxt() const { return nxt_; }
 
+  /// Third buffer for pipeline stages that must not read their own output
+  /// (reproduce and disperse). Scratch only; never swapped into cur.
+  Planes& aux() { return aux_; }
+
   // Swaps the two buffer sets. Cheap: only vector headers move, no memcpy.
   void swap_buffers();
 
@@ -47,6 +51,7 @@ class Grid {
   int32_t h_ = 0;
   Planes cur_;
   Planes nxt_;
+  Planes aux_;
 };
 
 }  // namespace ecosim

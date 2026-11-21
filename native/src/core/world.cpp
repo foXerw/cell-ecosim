@@ -9,6 +9,7 @@
 
 #include "core/kernel_fast.h"
 #include "core/render.h"
+#include "rules/pipeline.h"
 #include "core/species.h"
 #include "util/error.h"
 #include "util/rng.h"
@@ -33,10 +34,6 @@ bool World::validate(const EcosimConfig& cfg, char* why, int32_t cap) {
   }
   if (cfg.mode != ECOSIM_MODE_BIRSURV && cfg.mode != ECOSIM_MODE_ECOSYSTEM) {
     std::snprintf(why, cap, "未知模式 %d", cfg.mode);
-    return false;
-  }
-  if (cfg.mode == ECOSIM_MODE_ECOSYSTEM) {
-    std::snprintf(why, cap, "生态模式在里程碑 M2 才可用，当前只支持 B/S 规则模式");
     return false;
   }
   if (cfg.topology != ECOSIM_TOPOLOGY_TORUS && cfg.topology != ECOSIM_TOPOLOGY_BOUNDED) {
@@ -66,6 +63,7 @@ World::World(const EcosimConfig& cfg) : cfg_(cfg), rules_(RuleTable::from_config
     cfg_.birth_mask[i] = cfg_.birth_mask[i] ? 1 : 0;
     cfg_.survive_mask[i] = cfg_.survive_mask[i] ? 1 : 0;
   }
+  params_ = default_params();
   grid_.allocate(cfg_.w, cfg_.h);
   pool_ = std::make_unique<parallel::Pool>(cfg_.threads);
 }
@@ -79,16 +77,32 @@ int32_t World::step(int32_t n_steps) {
 
   const int32_t band_rows = parallel::band_rows_for(grid_.h(), pool_->size());
   for (int32_t i = 0; i < n_steps; ++i) {
-    // Bands write disjoint row ranges of nxt and only read cur, so they can run
-    // concurrently. The result is proven identical to a single-threaded pass by
-    // tests/test_parallel.cpp.
-    pool_->run_bands(grid_.h(), band_rows, [&](int32_t y0, int32_t y1) {
-      kernel::step_fast(grid_.cur(), grid_.nxt(), grid_.w(), grid_.h(), y0, y1, rules_,
-                        cfg_.topology);
-    });
-    grid_.swap_buffers();
+    if (cfg_.mode == ECOSIM_MODE_ECOSYSTEM) {
+      // The stages mutate the buffer they read, so this path stays single
+      // threaded (docs/architecture.md). The B/S path keeps its band split.
+      run_ecosystem(*this);
+    } else {
+      // Bands write disjoint row ranges of nxt and only read cur, so they can
+      // run concurrently. The result is proven identical to a single-threaded
+      // pass by tests/test_parallel.cpp.
+      pool_->run_bands(grid_.h(), band_rows, [&](int32_t y0, int32_t y1) {
+        kernel::step_fast(grid_.cur(), grid_.nxt(), grid_.w(), grid_.h(), y0, y1, rules_,
+                          cfg_.topology);
+      });
+      grid_.swap_buffers();
+    }
+    generation_ += 1;
   }
-  generation_ += static_cast<uint64_t>(n_steps);
+  return ECOSIM_OK;
+}
+
+int32_t World::set_params(const EcosimParams& p) {
+  char why[256];
+  if (!validate_params(p, why, static_cast<int32_t>(sizeof(why)))) {
+    set_error(why);
+    return ECOSIM_ERR_INVALID;
+  }
+  params_ = p;
   return ECOSIM_OK;
 }
 

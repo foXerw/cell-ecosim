@@ -19,6 +19,9 @@ struct SpeciesDef {
   uint16_t metabolism;             // energy burned per generation
   uint16_t repro_threshold;        // energy at which reproduction is attempted
   uint16_t feed_efficiency_permille;  // fraction of prey energy actually gained
+  /// Producers only: energy gained per generation from the resource around the
+  // cell, as permille of the 8-neighbour resource sum divided by 8.
+  uint16_t photosynthesis_permille;
   uint16_t mobility_permille;         // chance per generation to swap with an empty neighbour
   uint16_t mutation_permille;         // chance a newborn is perturbed
 };

@@ -9,7 +9,7 @@ void Grid::allocate(int32_t w, int32_t h) {
   w_ = w;
   h_ = h;
   const size_t n = count();
-  for (Planes* p : {&cur_, &nxt_}) {
+  for (Planes* p : {&cur_, &nxt_, &aux_}) {
     p->species.assign(n, 0);
     p->resource.assign(n, 0);
     p->energy.assign(n, 0);

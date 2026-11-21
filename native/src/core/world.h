@@ -6,6 +6,7 @@
 #include "core/grid.h"
 #include "core/kernel.h"
 #include "core/parallel.h"
+#include "core/params.h"
 #include "ecosim_abi.h"
 
 namespace ecosim {
@@ -42,6 +43,9 @@ class World {
 
   int32_t stats(EcosimStats& out) const;
 
+  const EcosimParams& params() const { return params_; }
+  int32_t set_params(const EcosimParams& p);
+
   uint64_t generation() const { return generation_; }
   const EcosimConfig& config() const { return cfg_; }
   int32_t topology() const { return cfg_.topology; }
@@ -56,6 +60,7 @@ class World {
  private:
   EcosimConfig cfg_;
   RuleTable rules_;
+  EcosimParams params_;
   Grid grid_;
   std::unique_ptr<parallel::Pool> pool_;
   uint64_t generation_ = 0;

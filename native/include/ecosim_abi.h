@@ -67,7 +67,8 @@ typedef enum EcosimStructId {
   ECOSIM_STRUCT_PALETTE = 3,
   ECOSIM_STRUCT_PAINT_OP = 4,
   ECOSIM_STRUCT_STATS = 5,
-  ECOSIM_STRUCT_SEED = 6
+  ECOSIM_STRUCT_SEED = 6,
+  ECOSIM_STRUCT_PARAMS = 7
 } EcosimStructId;
 
 #pragma pack(push, 4)
@@ -124,6 +125,17 @@ typedef struct EcosimSeedConfig {
   uint32_t density_permille;   /* 0..1000 */
   uint64_t seed;               /* 0 = fall back to EcosimConfig.rng_seed */
 } EcosimSeedConfig;
+
+/* Tunables for the ecosystem pipeline. Indexed by species id (slot 0 unused).
+ * Scales are permille multipliers over the species table's base numbers, so
+ * the table stays the single source of truth for what a species *is*. */
+typedef struct EcosimParams {
+  int32_t struct_size;
+  int32_t light_permille;       /* chance an eligible empty cell sprouts a producer */
+  int32_t fertility_permille;   /* chance a cell gains +1 resource this generation */
+  int32_t metabolism_scale_permille[ECOSIM_MAX_SPECIES];
+  int32_t repro_scale_permille[ECOSIM_MAX_SPECIES];
+} EcosimParams;
 
 #pragma pack(pop)
 
