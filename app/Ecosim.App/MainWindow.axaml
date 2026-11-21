@@ -53,9 +53,10 @@
             BorderBrush="#2A2F36" Background="#1A1E23">
       <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
         <TextBlock Text="时间轴" VerticalAlignment="Center" Opacity="0.75" />
-        <Slider Width="360" Minimum="0" Maximum="{Binding Timeline.MaximumIndex}"
-                Value="{Binding ScrubIndex, Mode=TwoWay}"
-                ToolTip.Tip="拖动会暂停模拟并回到那一代" />
+        <Slider x:Name="TimelineSlider" Width="360" Minimum="0"
+                Maximum="{Binding Timeline.MaximumIndex}"
+                Value="{Binding ScrubValue, Mode=OneWay}"
+                ToolTip.Tip="拖动后松手回到那一代（会自动暂停）" />
         <TextBlock Text="{Binding ReviewLabel}" VerticalAlignment="Center"
                    FontFamily="Consolas,Menlo,monospace" />
         <Button Content="退出回放" Command="{Binding ExitReviewCommand}" />
@@ -155,8 +156,8 @@
           <StackPanel Spacing="6">
             <TextBlock Text="规则 B / S" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <TextBox Text="{Binding BirthText}" Width="60" Watermark="3" />
-              <TextBox Text="{Binding SurviveText}" Width="60" Watermark="23" />
+              <TextBox Text="{Binding BirthText}" Width="60" PlaceholderText="3" />
+              <TextBox Text="{Binding SurviveText}" Width="60" PlaceholderText="23" />
               <Button Content="应用" Command="{Binding ApplyRuleCommand}" />
             </StackPanel>
             <Button Content="{Binding TopologyLabel, StringFormat='拓扑：{0}（点击切换）'}"

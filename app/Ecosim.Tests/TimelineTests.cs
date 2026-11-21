@@ -118,4 +118,78 @@ public class TimelineTests
         Assert.True(timeline.Restore(timeline.Count - 1));
         Assert.Equal(3, world.Generation);
     }
+
+    [Fact]
+    public void The_scrubber_rests_at_zero_while_live_and_shows_the_index_while_reviewing()
+    {
+        // The slider is bound OneWay to this value, so "live" has to be a real
+        // number rather than the index of whatever frame was last reviewed:
+        // a stale index made the thumb sit mid-track while the board ran.
+        using var world = Ecosystem();
+        world.Step(24);
+        var timeline = new TimelineModel(world);
+        Assert.True(timeline.Count > 1);
+
+        Assert.Equal(0, timeline.ScrubValue);
+
+        Assert.True(timeline.Restore(timeline.Count - 1));
+        Assert.Equal(timeline.Count - 1, timeline.ScrubValue);
+
+        timeline.ExitReview();
+        Assert.Equal(0, timeline.ScrubValue);
+    }
+
+    [Fact]
+    public void A_growing_ring_does_not_drag_a_live_timeline_into_review()
+    {
+        // Maximum is bound to MaximumIndex, so it moves while the simulation
+        // runs. Growing must not read back as a selection: the timeline stays
+        // live and keeps reporting the engine's own generation.
+        using var world = Ecosystem();
+        var timeline = new TimelineModel(world);
+        Assert.Equal(0, timeline.MaximumIndex);
+
+        var raised = new List<string?>();
+        timeline.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        world.Step(24);
+        timeline.Refresh();
+
+        Assert.True(timeline.MaximumIndex > 0);
+        Assert.Equal(-1, timeline.Index);
+        Assert.False(timeline.IsReviewing);
+        Assert.Equal(0, timeline.ScrubValue);
+        Assert.Equal(world.Generation, timeline.CurrentGeneration);
+        // Maximum is bound to MaximumIndex, so a Refresh that grew the ring
+        // has to say so or the slider's range stays stuck at zero.
+        Assert.Contains(nameof(TimelineModel.MaximumIndex), raised);
+    }
+
+    [Fact]
+    public void Refreshing_while_reviewing_keeps_the_reviewed_frame()
+    {
+        // The app refreshes the timeline on every pump tick, including while the
+        // user is holding the scrubber. A refresh must not knock them back to
+        // live or move the thumb off the frame they picked - and because the
+        // engine keeps stepping, the ring really does grow underneath them here.
+        using var world = Ecosystem();
+        world.Step(16);
+        var timeline = new TimelineModel(world);
+        var picked = 0;
+        Assert.True(timeline.Restore(picked));
+        var generation = timeline.CurrentGeneration;
+
+        world.Step(16);
+        timeline.Refresh();
+
+        Assert.True(timeline.IsReviewing);
+        Assert.Equal(picked, timeline.Index);
+        Assert.Equal(picked, timeline.ScrubValue);
+        Assert.Equal(generation, timeline.CurrentGeneration);
+
+        // Leaving review afterwards still lands on live.
+        timeline.ExitReview();
+        Assert.Equal(-1, timeline.Index);
+        Assert.Equal(0, timeline.ScrubValue);
+    }
 }

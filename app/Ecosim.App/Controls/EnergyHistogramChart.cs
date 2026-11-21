@@ -11,7 +11,13 @@ namespace Ecosim.App.Controls;
 /// </summary>
 public sealed class EnergyHistogramChart : Control
 {
-    public static readonly StyledProperty<int[]>? ValuesProperty =
+    // Nullable on purpose, and checked in Render: a binding writes through the
+    // property system, so it bypasses the CLR setter's null-coalescing and can
+    // park a null here before the view model has produced its first histogram.
+    // Declaring the type as non-nullable claimed a guarantee the property system
+    // does not give, and the first frame paid for it with a NullReferenceException
+    // inside the compositor - which takes the whole window down.
+    public static readonly StyledProperty<int[]?> ValuesProperty =
         AvaloniaProperty.Register<EnergyHistogramChart, int[]?>(nameof(Values));
 
     static EnergyHistogramChart()

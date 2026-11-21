@@ -34,10 +34,16 @@ public sealed class TimelineModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsReviewing));
             OnPropertyChanged(nameof(CurrentGeneration));
+            OnPropertyChanged(nameof(ScrubValue));
         }
     }
 
     public bool IsReviewing => Index >= 0;
+
+    /// <summary>What the scrubber shows. Live is a real value (0) rather than
+    /// the index of whatever was reviewed last: the slider binds to this OneWay
+    /// and would otherwise park its thumb mid-track while the board runs.</summary>
+    public int ScrubValue => IsReviewing ? Index : 0;
 
     /// <summary>For a slider bound to Maximum: an empty ring still needs a
     /// valid (if useless) range rather than a negative bound.</summary>
@@ -48,10 +54,19 @@ public sealed class TimelineModel : INotifyPropertyChanged
     public void Refresh()
     {
         Count = _world.SnapshotCount();
-        OnPropertyChanged(nameof(Count));
-        OnPropertyChanged(nameof(CurrentGeneration));
+        var wasReviewing = IsReviewing;
         if (_index >= Count) _index = Count - 1;
+
+        OnPropertyChanged(nameof(Count));
+        // Every derived reading is announced, not just the ones that happened
+        // to change: MaximumIndex is what the slider's Maximum binds to, so a
+        // Refresh that grew the ring but stayed quiet left the scrubber with a
+        // zero-length track no matter how long the simulation ran.
+        OnPropertyChanged(nameof(MaximumIndex));
         OnPropertyChanged(nameof(Index));
+        OnPropertyChanged(nameof(CurrentGeneration));
+        OnPropertyChanged(nameof(ScrubValue));
+        if (wasReviewing != IsReviewing) OnPropertyChanged(nameof(IsReviewing));
     }
 
     /// <summary>Jumps to a snapshot; the engine rewinds the generation with it,

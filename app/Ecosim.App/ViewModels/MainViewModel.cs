@@ -47,6 +47,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Timeline = new TimelineModel(_world);
         _reviewing = false;
         OnPropertyChanged(nameof(Timeline));
+        RaiseDependent(nameof(ScrubValue));
         RaiseDependent(nameof(ReviewLabel));
         _clock = CreateClock();
         ApplyStartupLayer();
@@ -110,6 +111,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SaveCewCommand = new AsyncRelayCommand(_ => SaveCewAsync());
         OpenCewCommand = new AsyncRelayCommand(_ => OpenCewAsync());
         ExitReviewCommand = new RelayCommand(ExitReview);
+        PinSnapshotCommand = new RelayCommand(PinSnapshot);
         ToggleTopologyCommand = new RelayCommand(() =>
         {
             Topology = Topology == GridTopology.Torus ? GridTopology.Bounded : GridTopology.Torus;
@@ -128,15 +130,32 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public bool IsReviewing => Timeline.IsReviewing;
 
-    /// <summary>Dragging the scrubber pauses the clock first: reviewing a
-    /// history frame while the simulation keeps stepping would overwrite it.</summary>
-    public double ScrubIndex
-    {
-        get => Math.Max(0, Timeline.Index);
-        set => ScrubTo((int)Math.Round(value));
-    }
+    /// <summary>
+    /// Where the scrubber sits. Read-only on purpose: a two-way binding let the
+    /// control write a stale index back while the ring was refilling, which is
+    /// what parked the thumb mid-track while the label said 实时. The view
+    /// commits a drag explicitly via ScrubTo.
+    /// </summary>
+    public double ScrubValue => Timeline.ScrubValue;
+
+    /// <summary>Dragging pauses the clock first: reviewing a history frame while
+    /// the simulation keeps stepping would overwrite it.</summary>
+    public void ScrubTo(double value) => ScrubTo((int)Math.Round(value));
 
     public ICommand ExitReviewCommand { get; private set; } = null!;
+
+    public ICommand PinSnapshotCommand { get; }
+
+    /// <summary>Ctrl+K: keeps the current frame in the ring regardless of the
+    /// sampling stride, so a moment worth revisiting survives it.</summary>
+    private void PinSnapshot()
+    {
+        var index = _world.SnapshotCapture();
+        RefreshHistory();
+        Notice = index >= 0
+            ? $"已钉住第 {_world.Generation:N0} 代（时间轴第 {index} 帧）"
+            : "钉住当前帧失败";
+    }
 
     private void ScrubTo(int index)
     {
@@ -149,7 +168,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _reviewing = true;
         if (!Timeline.Restore(index)) return;
         Redraw();
-        RaiseDependent(nameof(ScrubIndex));
+        RaiseDependent(nameof(ScrubValue));
         RaiseDependent(nameof(IsReviewing));
         RaiseDependent(nameof(ReviewLabel));
     }
@@ -160,7 +179,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Timeline.ExitReview();
         Redraw();
         Notice = "已退出回放，回到当前状态";
-        RaiseDependent(nameof(ScrubIndex));
+        RaiseDependent(nameof(ScrubValue));
         RaiseDependent(nameof(IsReviewing));
         RaiseDependent(nameof(ReviewLabel));
     }
@@ -396,7 +415,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private const int MaxEventLines = 100;
 
     /// <summary>Energy distribution, recomputed on the same slow beat.</summary>
-    public int[]? Histogram { get; private set; }
+    /// <summary>Empty rather than null before the first refresh: "no data yet"
+    /// is a state the chart can draw, and pushing null through the binding is
+    /// what crashed the compositor on startup.</summary>
+    public int[] Histogram { get; private set; } = Array.Empty<int>();
 
     public void RefreshHistory()
     {
@@ -543,6 +565,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Timeline = new TimelineModel(_world);
         _reviewing = false;
         OnPropertyChanged(nameof(Timeline));
+        RaiseDependent(nameof(ScrubValue));
         RaiseDependent(nameof(ReviewLabel));
         OnPropertyChanged(nameof(Canvas));
         OnPropertyChanged(nameof(Params));

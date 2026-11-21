@@ -54,6 +54,21 @@ public partial class MainWindow : Window
         // already fired before this view subscribed.
         CanvasImage.Source = vm.CanvasBitmap;
         vm.Redraw();
+
+        // The scrubber commits on release rather than through a two-way
+        // binding, so nothing can write a stale frame index back into the view
+        // model while the ring is refilling.
+        TimelineSlider.AddHandler(PointerReleasedEvent, (_, _) =>
+        {
+            if (TimelineSlider.Value != vm.ScrubValue) vm.ScrubTo(TimelineSlider.Value);
+        });
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.ScrubValue))
+            {
+                TimelineSlider.Value = vm.ScrubValue;
+            }
+        };
     }
 
     /// <summary>The canvas view model is replaced when the world is rebuilt, so
@@ -188,6 +203,9 @@ public partial class MainWindow : Window
                 break;
             case Key.F:
                 Execute(_vm.FitViewCommand);
+                break;
+            case Key.K when ctrl:
+                Execute(_vm.PinSnapshotCommand);
                 break;
             case Key.Add or Key.OemPlus:
                 _vm.Speed = _vm.Speed + 5;
