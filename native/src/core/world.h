@@ -79,6 +79,9 @@ class World {
   int32_t set_param(int32_t index, int32_t value);
 
   uint64_t generation() const { return generation_; }
+
+  /// Only .cew loading rewinds time; the pipeline never calls this.
+  void set_generation(uint64_t generation) { generation_ = generation; }
   const EcosimConfig& config() const { return cfg_; }
   int32_t topology() const { return cfg_.topology; }
   int32_t threads() const { return cfg_.threads; }

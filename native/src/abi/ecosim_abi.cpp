@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "core/params.h"
+#include "core/cew.h"
 #include "core/render.h"
 #include "core/rle.h"
 #include "core/world.h"
@@ -407,6 +408,56 @@ uint64_t ecosim_hash(const EcosimWorld* world) {
   const std::vector<uint8_t>& species = w->grid().cur().species;
   for (uint8_t s : species) h = (h ^ s) * 1099511628211ull;
   return h;
+}
+
+int32_t ecosim_cew_size(const EcosimWorld* world, int32_t* out_needed) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (out_needed == nullptr) {
+    ecosim::set_error("out_needed 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  *out_needed = ecosim::cew::worst_case_size(w->grid().w(), w->grid().h());
+  return ECOSIM_OK;
+}
+
+int32_t ecosim_save_cew(const EcosimWorld* world, uint8_t* buf, int32_t cap,
+                        int32_t* out_written) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (buf == nullptr || out_written == nullptr || cap <= 0) {
+    ecosim::set_error("save_cew 需要非空缓冲区与 out_written");
+    return ECOSIM_ERR_INVALID;
+  }
+  std::vector<uint8_t> bytes;
+  const int32_t rc = ecosim::cew::encode(*w, bytes);
+  if (rc != ECOSIM_OK) return rc;
+  if (static_cast<int64_t>(bytes.size()) > cap) {
+    char msg[128];
+    std::snprintf(msg, sizeof(msg), "缓冲区 %d 字节不够，存档需要 %zu 字节（先调 ecosim_cew_size）",
+                  cap, bytes.size());
+    ecosim::set_error(msg);
+    return ECOSIM_ERR_SIZE;
+  }
+  std::memcpy(buf, bytes.data(), bytes.size());
+  *out_written = static_cast<int32_t>(bytes.size());
+  return ECOSIM_OK;
+}
+
+int32_t ecosim_load_cew(EcosimWorld* world, const uint8_t* buf, int32_t len) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (buf == nullptr || len <= 0) {
+    ecosim::set_error("load_cew 需要非空缓冲与正数长度");
+    return ECOSIM_ERR_INVALID;
+  }
+  std::string why;
+  const int32_t rc = ecosim::cew::decode(buf, static_cast<size_t>(len), *w, why);
+  if (rc != ECOSIM_OK && !why.empty()) ecosim::set_error(why.c_str());
+  return rc;
 }
 
 int32_t ecosim_rle_size(const EcosimWorld* world, int32_t* out_needed) {

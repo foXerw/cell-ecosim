@@ -279,6 +279,11 @@ ECOSIM_API int32_t ECOSIM_CALL ecosim_event_poll(EcosimWorld* world, EcosimEvent
 ECOSIM_API int32_t ECOSIM_CALL ecosim_stats(const EcosimWorld* world, EcosimStats* out);
 ECOSIM_API uint64_t ECOSIM_CALL ecosim_hash(const EcosimWorld* world);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_rle_size(const EcosimWorld* world, int32_t* out_needed);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_cew_size(const EcosimWorld* world, int32_t* out_needed);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_save_cew(const EcosimWorld* world, uint8_t* buf,
+                                                int32_t cap, int32_t* out_written);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_load_cew(EcosimWorld* world, const uint8_t* buf,
+                                                int32_t len);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_to_rle(const EcosimWorld* world, char* buf, int32_t cap,
                                              int32_t* out_written);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_from_rle(EcosimWorld* world, const char* rle);

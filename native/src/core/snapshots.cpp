@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "core/plane_codec.h"
 #include "core/species.h"
 #include "util/error.h"
 
@@ -10,76 +11,17 @@ namespace ecosim {
 
 namespace {
 
-constexpr uint8_t kModeRaw = 0;
-constexpr uint8_t kModeRle = 1;
+constexpr uint8_t kModeRaw = codec::kModeRaw;
+constexpr uint8_t kModeRle = codec::kModeRle;
 
 struct Header {
   uint8_t version;
   uint8_t mode_species;
   uint8_t mode_energy;
   uint8_t mode_resource;
+  uint8_t pad;
   uint32_t cells;
 };
-
-template <typename T>
-void append(std::vector<uint8_t>& out, const T& value) {
-  const size_t at = out.size();
-  out.resize(at + sizeof(T));
-  std::memcpy(out.data() + at, &value, sizeof(T));
-}
-
-/// Run-length encode one plane. A run is (value, count); because a board full
-/// of single-cell runs would be *larger* than the raw plane, the caller keeps
-/// whichever encoding came out smaller.
-template <typename T>
-void encode_plane(const std::vector<T>& plane, std::vector<uint8_t>& out, uint8_t& mode) {
-  std::vector<uint8_t> rle;
-  size_t i = 0;
-  while (i < plane.size()) {
-    const T value = plane[i];
-    size_t run = 1;
-    while (i + run < plane.size() && plane[i + run] == value) ++run;
-    append(rle, value);
-    append(rle, static_cast<uint32_t>(run));
-    i += run;
-  }
-
-  if (rle.size() < plane.size() * sizeof(T)) {
-    mode = kModeRle;
-    out.insert(out.end(), rle.begin(), rle.end());
-  } else {
-    mode = kModeRaw;
-    out.insert(out.end(), reinterpret_cast<const uint8_t*>(plane.data()),
-               reinterpret_cast<const uint8_t*>(plane.data()) + plane.size() * sizeof(T));
-  }
-}
-
-template <typename T>
-bool decode_plane(const uint8_t* data, size_t size, size_t& cursor, uint8_t mode,
-                  std::vector<T>& plane) {
-  if (mode == kModeRaw) {
-    const size_t bytes = plane.size() * sizeof(T);
-    if (cursor + bytes > size) return false;
-    std::memcpy(plane.data(), data + cursor, bytes);
-    cursor += bytes;
-    return true;
-  }
-
-  size_t filled = 0;
-  while (filled < plane.size()) {
-    if (cursor + sizeof(T) + sizeof(uint32_t) > size) return false;
-    T value{};
-    uint32_t run = 0;
-    std::memcpy(&value, data + cursor, sizeof(T));
-    cursor += sizeof(T);
-    std::memcpy(&run, data + cursor, sizeof(uint32_t));
-    cursor += sizeof(uint32_t);
-    if (run == 0 || filled + run > plane.size()) return false;
-    std::fill_n(plane.begin() + static_cast<long>(filled), run, value);
-    filled += run;
-  }
-  return true;
-}
 
 }  // namespace
 
@@ -97,18 +39,19 @@ void SnapshotRing::clear() {
 
 int32_t SnapshotRing::capture(uint64_t generation, const Grid& grid) {
   const Planes& cur = grid.cur();
-  // The modes are decided into locals first: encode_plane appends to the same
-  // buffer it would otherwise be told to write its mode into, and that append
-  // can reallocate the vector out from under the reference.
+
+  // The planes are encoded into `body` with their modes in locals, then the
+  // header is prepended. Handing the output buffer to encode_plane while also
+  // writing the mode into that same buffer would leave a reference into a
+  // vector that its own append is about to reallocate.
+  std::vector<uint8_t> body;
+  body.reserve(static_cast<size_t>(grid.count()));
   uint8_t mode_species = kModeRaw;
   uint8_t mode_energy = kModeRaw;
   uint8_t mode_resource = kModeRaw;
-  std::vector<uint8_t> blob;
-  blob.reserve(sizeof(Header) + grid.count() / 2);
-
-  encode_plane(cur.species, blob, mode_species);
-  encode_plane(cur.energy, blob, mode_energy);
-  encode_plane(cur.resource, blob, mode_resource);
+  codec::encode_plane(cur.species, body, mode_species);
+  codec::encode_plane(cur.energy, body, mode_energy);
+  codec::encode_plane(cur.resource, body, mode_resource);
 
   Header header{};
   header.version = 1;
@@ -117,8 +60,10 @@ int32_t SnapshotRing::capture(uint64_t generation, const Grid& grid) {
   header.mode_resource = mode_resource;
   header.cells = static_cast<uint32_t>(grid.count());
 
-  blob.insert(blob.begin(), reinterpret_cast<const uint8_t*>(&header),
-              reinterpret_cast<const uint8_t*>(&header) + sizeof(header));
+  std::vector<uint8_t> blob;
+  blob.reserve(sizeof(header) + body.size());
+  codec::append_bytes(blob, &header, sizeof(header));
+  blob.insert(blob.end(), body.begin(), body.end());
 
   Slot& slot = slots_[static_cast<size_t>(head_)];
   slot.generation = generation;
@@ -179,11 +124,11 @@ int32_t SnapshotRing::restore(Grid& grid, int32_t index) const {
 
   Planes& cur = grid.cur();
   size_t cursor = sizeof(header);
-  bool ok = decode_plane(slot.blob.data(), slot.blob.size(), cursor, header.mode_species,
+  bool ok = codec::decode_plane(slot.blob.data(), slot.blob.size(), cursor, header.mode_species,
                          cur.species) &&
-            decode_plane(slot.blob.data(), slot.blob.size(), cursor, header.mode_energy,
+            codec::decode_plane(slot.blob.data(), slot.blob.size(), cursor, header.mode_energy,
                          cur.energy) &&
-            decode_plane(slot.blob.data(), slot.blob.size(), cursor, header.mode_resource,
+            codec::decode_plane(slot.blob.data(), slot.blob.size(), cursor, header.mode_resource,
                          cur.resource);
   if (!ok) {
     set_error("快照数据损坏（解码越界）");
