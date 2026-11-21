@@ -18,6 +18,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private World _world;
     private SimClock _clock;
     private readonly Avalonia.Threading.DispatcherTimer _pump;
+    private readonly Avalonia.Threading.DispatcherTimer _chartTimer;
     private readonly CanvasRenderer _renderer = new();
     private CanvasViewModel _canvas;
     private WriteableBitmap? _canvasBitmap;
@@ -59,6 +60,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             var snap = _clock.LatestSnapshot;
             if (snap is not null && snap.Generation != _paintedGeneration) PaintSnapshot(snap);
         };
+
+        // Reading 600 samples across the border every frame would be pure
+        // waste, so the chart refreshes on its own slower beat.
+        _chartTimer = new Avalonia.Threading.DispatcherTimer(
+            Avalonia.Threading.DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(250),
+        };
+        _chartTimer.Tick += (_, _) => RefreshHistory();
+        _chartTimer.Start();
 
         ToggleRunCommand = new RelayCommand(ToggleRun);
         StepCommand = new RelayCommand(Step, () => !IsRunning);
@@ -316,6 +327,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// while paused (painting, stepping, imports). The capture has to match the
     /// palette: asking for a heat map out of a thin snapshot is a bug here, not
     /// a reason to bother the user.</summary>
+    /// <summary>The population history the chart binds to.</summary>
+    public IReadOnlyList<HistorySample>? HistorySamples { get; private set; }
+
+    public void RefreshHistory()
+    {
+        HistorySamples = _world.History(600);
+        OnPropertyChanged(nameof(HistorySamples));
+    }
+
     public void Redraw() => PaintSnapshot(_world.CaptureFor(Palette));
 
     private void PaintSnapshot(SpeciesSnapshot snapshot)
@@ -430,6 +450,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Params = new ParamsModel(_world);
         OnPropertyChanged(nameof(Canvas));
         OnPropertyChanged(nameof(Params));
+        RefreshHistory();
         _clock = CreateClock();
         if (wasRunning)
         {
@@ -626,6 +647,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _chartTimer.Stop();
         _pump.Stop();
         _clock.Dispose();
         _world.Dispose();

@@ -35,6 +35,7 @@ static_assert(offsetof(EcosimStats, species_count) == 24, "species_count offset 
 static_assert(sizeof(EcosimSeedConfig) == 20, "EcosimSeedConfig layout drift");
 static_assert(sizeof(EcosimParams) == 140, "EcosimParams layout drift");
 static_assert(sizeof(EcosimParamDesc) == 48, "EcosimParamDesc layout drift");
+static_assert(sizeof(EcosimHistorySample) == 80, "EcosimHistorySample layout drift");
 
 namespace {
 
@@ -63,6 +64,7 @@ int32_t ecosim_abi_struct_size(int32_t which) {
     case ECOSIM_STRUCT_SEED: return static_cast<int32_t>(sizeof(EcosimSeedConfig));
     case ECOSIM_STRUCT_PARAMS: return static_cast<int32_t>(sizeof(EcosimParams));
     case ECOSIM_STRUCT_PARAM_DESC: return static_cast<int32_t>(sizeof(EcosimParamDesc));
+    case ECOSIM_STRUCT_HISTORY_SAMPLE: return static_cast<int32_t>(sizeof(EcosimHistorySample));
     default: return 0;
   }
 }
@@ -83,13 +85,17 @@ EcosimWorld* ecosim_world_create(const EcosimConfig* cfg) {
     ecosim::set_error(why);
     return nullptr;
   }
+  // A single catch-all on purpose: catching std::exception by type makes this
+  // TU emit a strong definition of its typeinfo under -static, and the engine
+  // objects emit the same one - a multiple-definition link error whose message
+  // this toolchain never shows. The diagnostic is not lost: World::validate
+  // already put it in the thread-local error string before throwing.
   try {
     return reinterpret_cast<EcosimWorld*>(new ecosim::World(*cfg));
-  } catch (const std::exception& e) {
-    ecosim::set_error(e.what());
-    return nullptr;
   } catch (...) {
-    ecosim::set_error("创建世界时发生未知错误");
+    if (std::strlen(ecosim_last_error()) == 0) {
+      ecosim::set_error("创建世界时发生未知错误");
+    }
     return nullptr;
   }
 }
@@ -277,6 +283,37 @@ int32_t ecosim_params_set(EcosimWorld* world, const EcosimParams* params) {
     return ECOSIM_ERR_INVALID;
   }
   return w->set_params(*params);
+}
+
+int32_t ecosim_history_count(const EcosimWorld* world) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  return w ? w->history().size() : 0;
+}
+
+int32_t ecosim_history_get(const EcosimWorld* world, int32_t index, EcosimHistorySample* out) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (out == nullptr) {
+    ecosim::set_error("out 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (out->struct_size < static_cast<int32_t>(sizeof(EcosimHistorySample))) {
+    ecosim::set_error("EcosimHistorySample.struct_size 太小");
+    return ECOSIM_ERR_SIZE;
+  }
+  if (index < 0 || index >= w->history().size()) {
+    char msg[96];
+    std::snprintf(msg, sizeof(msg), "历史索引 %d 超出 0..%d", index, w->history().size() - 1);
+    ecosim::set_error(msg);
+    return ECOSIM_ERR_RANGE;
+  }
+  const ecosim::HistoryRing::Sample& s = w->history().at(index);
+  out->generation = s.generation;
+  out->alive_count = s.alive;
+  std::memcpy(out->species_count, s.counts.data(), sizeof(out->species_count));
+  return ECOSIM_OK;
 }
 
 int32_t ecosim_stats(const EcosimWorld* world, EcosimStats* out) {

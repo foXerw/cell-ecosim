@@ -47,7 +47,8 @@ bool World::validate(const EcosimConfig& cfg, char* why, int32_t cap) {
   return true;
 }
 
-World::World(const EcosimConfig& cfg) : cfg_(cfg), rules_(RuleTable::from_config(cfg)) {
+World::World(const EcosimConfig& cfg)
+    : cfg_(cfg), rules_(RuleTable::from_config(cfg)), history_(ECOSIM_HISTORY_CAPACITY) {
   char why[256];
   if (!validate(cfg, why, static_cast<int32_t>(sizeof(why)))) {
     throw std::invalid_argument(why);
@@ -76,19 +77,30 @@ int32_t World::step(int32_t n_steps) {
   if (n_steps == 0) return ECOSIM_OK;
 
   const int32_t band_rows = parallel::band_rows_for(grid_.h(), pool_->size());
+  const int32_t bands = (grid_.h() + band_rows - 1) / band_rows;
+  std::vector<SpeciesCounts> band_counts(static_cast<size_t>(bands));
+
   for (int32_t i = 0; i < n_steps; ++i) {
     if (cfg_.mode == ECOSIM_MODE_ECOSYSTEM) {
       // The pipeline bands its own work internally (candidate lists, then a
-      // serial apply in cell order) - see rules/ecosystem.cpp.
-      run_ecosystem(*this);
+      // serial apply in cell order) - see rules/ecosystem.cpp - and reports
+      // the census rather than calling back into this file.
+      SpeciesCounts eco_counts{};
+      run_ecosystem(*this, &eco_counts);
+      record_generation(eco_counts);
     } else {
       // Bands write disjoint row ranges of nxt and only read cur, so they can
       // run concurrently. The result is proven identical to a single-threaded
       // pass by tests/test_parallel.cpp.
+      for (auto& counts : band_counts) counts.fill(0);
       pool_->run_bands(grid_.h(), band_rows, [&](int32_t y0, int32_t y1) {
         kernel::step_fast(grid_.cur(), grid_.nxt(), grid_.w(), grid_.h(), y0, y1, rules_,
-                          cfg_.topology);
+                          cfg_.topology,
+                          band_counts[static_cast<size_t>(y0 / band_rows)].data());
       });
+      SpeciesCounts counts{};
+      for (const auto& per_band : band_counts) merge_counts(counts, per_band);
+      record_generation(counts);
       grid_.swap_buffers();
     }
     generation_ += 1;

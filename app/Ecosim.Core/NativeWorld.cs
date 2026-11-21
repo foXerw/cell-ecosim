@@ -291,6 +291,46 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    /// <summary>Reads the tail of the engine's population history. Oldest
+    /// first. Pulling the whole ring every frame would be 4096 marshalling
+    /// calls, so the caller names how many samples it wants.</summary>
+    public IReadOnlyList<HistorySample> History(int last)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            var total = NativeMethods.ecosim_history_count(handle);
+            if (total < 0) total = 0;
+            var take = Math.Min(Math.Max(last, 0), total);
+            if (take == 0) return Array.Empty<HistorySample>();
+
+            var list = new List<HistorySample>(take);
+            // Ask the engine for the newest `take` samples: indices
+            // [total - take, total).
+            for (var i = total - take; i < total; ++i)
+            {
+                var dto = EcosimHistorySampleDto.Create();
+                ErrorTranslation.ThrowIfFailed("history_get",
+                    NativeMethods.ecosim_history_get(handle, i, ref dto));
+                list.Add(new HistorySample((long)dto.generation, dto.alive_count,
+                                           (int[])dto.species_count.Clone()));
+            }
+            return list;
+        }
+    }
+
+    public int HistoryLength
+    {
+        get
+        {
+            lock (_gate)
+            {
+                ThrowIfDisposed();
+                return Math.Max(0, NativeMethods.ecosim_history_count(handle));
+            }
+        }
+    }
+
     public ulong Hash()
     {
         lock (_gate)

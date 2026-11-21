@@ -41,6 +41,9 @@ extern "C" {
 #define ECOSIM_MAX_DIM 8192
 #define ECOSIM_MAX_SPECIES 16
 
+/* Generations of population census kept per world (sliding window). */
+#define ECOSIM_HISTORY_CAPACITY 4096
+
 /* Return codes. */
 enum {
   ECOSIM_OK = 0,
@@ -69,7 +72,8 @@ typedef enum EcosimStructId {
   ECOSIM_STRUCT_STATS = 5,
   ECOSIM_STRUCT_SEED = 6,
   ECOSIM_STRUCT_PARAMS = 7,
-  ECOSIM_STRUCT_PARAM_DESC = 8
+  ECOSIM_STRUCT_PARAM_DESC = 8,
+  ECOSIM_STRUCT_HISTORY_SAMPLE = 9
 } EcosimStructId;
 
 #pragma pack(push, 4)
@@ -130,6 +134,13 @@ typedef struct EcosimStats {
   int32_t h;
   int32_t species_count[ECOSIM_MAX_SPECIES];
 } EcosimStats;
+
+typedef struct EcosimHistorySample {
+  int32_t struct_size;
+  uint64_t generation;
+  int32_t alive_count;
+  int32_t species_count[ECOSIM_MAX_SPECIES];
+} EcosimHistorySample;
 
 typedef struct EcosimSeedConfig {
   int32_t struct_size;
@@ -227,6 +238,11 @@ ECOSIM_API int32_t ECOSIM_CALL ecosim_param_get(const EcosimWorld* world, int32_
                                                 int32_t* out_value);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_param_set(EcosimWorld* world, int32_t index,
                                                 int32_t value);
+
+/* --- population history (sliding window, oldest first) ----------------- */
+ECOSIM_API int32_t ECOSIM_CALL ecosim_history_count(const EcosimWorld* world);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_history_get(const EcosimWorld* world, int32_t index,
+                                                  EcosimHistorySample* out);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_params_set(EcosimWorld* world, const EcosimParams* params);
 
 /* --- analysis and persistence ---------------------------------------- */

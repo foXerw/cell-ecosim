@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "core/grid.h"
+#include "core/history.h"
 #include "core/kernel.h"
 #include "core/parallel.h"
 #include "core/params.h"
@@ -49,6 +50,12 @@ class World {
 
   int32_t stats(EcosimStats& out) const;
 
+  /// Inline on purpose: the pipeline reports a census, it does not call into
+  /// world.cpp, and an archive cannot resolve a cycle between two members.
+  void record_generation(const SpeciesCounts& counts) { history_.push(generation_ + 1, counts); }
+
+  const HistoryRing& history() const { return history_; }
+
   const EcosimParams& params() const { return params_; }
   int32_t set_params(const EcosimParams& p);
 
@@ -75,6 +82,7 @@ class World {
   RuleTable rules_;
   EcosimParams params_;
   Grid grid_;
+  HistoryRing history_;
   std::unique_ptr<parallel::Pool> pool_;
   uint64_t generation_ = 0;
 };

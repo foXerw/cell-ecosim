@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "core/parallel.h"
+#include "core/history.h"
 #include "core/params.h"
 #include "core/species.h"
 #include "core/world.h"
@@ -70,8 +71,10 @@ struct MoveAction {
 struct Ctx {
   const Planes* in;
   Planes* out;
-  const SenseField* sf;
+  SenseField* sf;
   const EcosimParams* p;
+  std::vector<uint8_t>* eaten;
+  std::vector<SpeciesCounts>* band_counts;
   int32_t w;
   int32_t h;
   bool torus;
@@ -80,7 +83,7 @@ struct Ctx {
 };
 
 void sense_rows(const Ctx& c, int32_t y0, int32_t y1) {
-  SenseField& sf = const_cast<SenseField&>(*c.sf);
+  SenseField& sf = *c.sf;
   for (int32_t y = y0; y < y1; ++y) {
     for (int32_t x = 0; x < c.w; ++x) {
       const size_t i = static_cast<size_t>(y) * c.w + x;
@@ -132,7 +135,7 @@ void feed_candidates(const Ctx& c, int32_t y0, int32_t y1, std::vector<FeedActio
 }
 
 void apply_feed(const Ctx& c, const std::vector<std::vector<FeedAction>>& per_band) {
-  std::vector<uint8_t> drained(c.in->species.size(), 0);
+  std::vector<uint8_t>& drained = *c.eaten;
   Planes& out = *c.out;
   for (const auto& band : per_band) {
     for (const FeedAction& a : band) {
@@ -304,7 +307,9 @@ void apply_disperse(const Ctx& c, const std::vector<std::vector<MoveAction>>& pe
   }
 }
 
-void regrow_rows(const Ctx& c, int32_t y0, int32_t y1) {
+/// Last stage that touches every cell, so it also takes the census that
+/// history keeps: no separate counting pass is needed anywhere.
+void regrow_rows(const Ctx& c, int32_t y0, int32_t y1, SpeciesCounts* counts) {
   Planes& io = *c.out;
   for (int32_t y = y0; y < y1; ++y) {
     for (int32_t x = 0; x < c.w; ++x) {
@@ -314,16 +319,18 @@ void regrow_rows(const Ctx& c, int32_t y0, int32_t y1) {
               static_cast<uint64_t>(c.p->fertility_permille)) {
         ++io.resource[i];
       }
-      if (io.species[i] != 0) continue;
-      if (io.resource[i] < kSproutResourceFloor) continue;
-      if (rng::draw(c.seed, c.generation, i * 8 + kChannelLight) % 1000u >=
-          static_cast<uint64_t>(c.p->light_permille)) {
-        continue;
+      const bool sprouts = io.species[i] == 0 && io.resource[i] >= kSproutResourceFloor &&
+                           rng::draw(c.seed, c.generation, i * 8 + kChannelLight) % 1000u <
+                               static_cast<uint64_t>(c.p->light_permille);
+      if (sprouts) {
+        io.species[i] = 1;
+        io.energy[i] = species_of(1).initial_energy;
+        io.age[i] = 0;
+        io.resource[i] = static_cast<uint8_t>(io.resource[i] - kSproutCost);
       }
-      io.species[i] = 1;
-      io.energy[i] = species_of(1).initial_energy;
-      io.age[i] = 0;
-      io.resource[i] = static_cast<uint8_t>(io.resource[i] - kSproutCost);
+      // The census has to see every cell, including the ones that did not
+      // sprout, so it lives after the branch rather than inside it.
+      if (counts != nullptr && io.species[i] != 0) ++(*counts)[io.species[i]];
     }
   }
 }
@@ -345,11 +352,22 @@ void sense(const Planes& in, int32_t w, int32_t h, int32_t topology, SenseField&
     for (auto& c : out.count) std::fill(c.begin(), c.end(), uint8_t{0});
     std::fill(out.resource_sum.begin(), out.resource_sum.end(), uint16_t{0});
   }
-  const Ctx c{&in, nullptr, &out, nullptr, w, h, topology == ECOSIM_TOPOLOGY_TORUS, 0, 0};
+  Ctx c;
+  c.in = &in;
+  c.out = nullptr;
+  c.sf = &out;
+  c.eaten = nullptr;
+  c.band_counts = nullptr;
+  c.p = nullptr;
+  c.w = w;
+  c.h = h;
+  c.torus = topology == ECOSIM_TOPOLOGY_TORUS;
+  c.generation = 0;
+  c.seed = 0;
   sense_rows(c, 0, h);
 }
 
-void run_ecosystem(World& w) {
+void run_ecosystem(World& w, SpeciesCounts* counts_out) {
   Grid& grid = w.grid();
   const int32_t W = grid.w();
   const int32_t H = grid.h();
@@ -357,13 +375,22 @@ void run_ecosystem(World& w) {
   const int32_t band_rows = parallel::band_rows_for(H, pool.size());
   const int32_t bands = (H + band_rows - 1) / band_rows;
 
-  static thread_local SenseField sf;
+  // Scratch lives with the call rather than in thread-local storage: bands
+  // write disjoint rows of all of it, so no TLS is needed - and non-trivial
+  // thread_local objects are what made this translation unit unlinkable under
+  // MinGW static linking, with a diagnostic ld never printed.
+  const size_t n = grid.count();
+  SenseField sf;
   sf.allocate(W, H);  // also zeroes: the census accumulates
+  std::vector<uint8_t> eaten(n, 0);
+  std::vector<SpeciesCounts> band_counts(static_cast<size_t>(bands), SpeciesCounts{});
 
   Ctx c;
   c.in = &grid.cur();
   c.out = &grid.nxt();
   c.sf = &sf;
+  c.eaten = &eaten;
+  c.band_counts = &band_counts;
   c.p = &w.params();
   c.w = W;
   c.h = H;
@@ -402,8 +429,15 @@ void run_ecosystem(World& w) {
   });
   apply_disperse(c, move_actions);
 
-  // 6. regrow per cell.
-  pool.run_bands(H, band_rows, [&](int32_t y0, int32_t y1) { regrow_rows(c, y0, y1); });
+  // 6. regrow per cell, taking the census as it goes.
+  pool.run_bands(H, band_rows, [&](int32_t y0, int32_t y1) {
+    regrow_rows(c, y0, y1, &(*c.band_counts)[static_cast<size_t>(y0 / band_rows)]);
+  });
+
+  if (counts_out != nullptr) {
+    counts_out->fill(0);
+    for (const auto& per_band : *c.band_counts) merge_counts(*counts_out, per_band);
+  }
 
   grid.swap_buffers();
 }

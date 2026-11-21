@@ -24,6 +24,7 @@ set(ECOSIM_STATIC_LINK -static -static-libgcc -static-libstdc++)
 # same ABI shell over the same objects.
 add_library(ecosim_core STATIC
   src/core/grid.cpp
+  src/core/history.cpp
   src/core/kernel.cpp
   src/core/kernel_fast.cpp
   src/core/parallel.cpp

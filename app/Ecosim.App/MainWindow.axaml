@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Ecosim.App.ViewModels"
         xmlns:core="using:Ecosim.Core"
+        xmlns:ctrl="using:Ecosim.App.Controls"
         x:Class="Ecosim.App.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Cell Ecosim — 细胞生态模拟器"
@@ -171,7 +172,20 @@
       </ScrollViewer>
     </Border>
 
-    <!-- 画布：一像素一格的位图，靠 RenderTransform 做缩放平移 -->
+    <Border DockPanel.Dock="Right" Width="250" Background="#171B20"
+            BorderBrush="#2A2F36" BorderThickness="1,0,0,0" Padding="10">
+      <StackPanel Spacing="8">
+        <TextBlock Text="种群数量（最近 600 代）" FontWeight="SemiBold" />
+        <ctrl:PopulationChart Samples="{Binding HistorySamples}" Height="150" />
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <TextBlock Text="■ 藻" Foreground="#6FD36F" FontSize="12" />
+          <TextBlock Text="■ 虫" Foreground="#E8C840" FontSize="12" />
+          <TextBlock Text="■ 兽" Foreground="#F06058" FontSize="12" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- 画布：一像素一格的位图，位置与尺寸来自 Viewport.DestinationRect -->
     <Grid x:Name="CanvasHost" ClipToBounds="True" Background="#0F1216"
           PointerPressed="OnCanvasPointerPressed"
           PointerMoved="OnCanvasPointerMoved"

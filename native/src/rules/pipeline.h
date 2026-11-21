@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "core/grid.h"
+#include "core/history.h"
 #include "ecosim_abi.h"
 
 namespace ecosim {
@@ -24,11 +25,10 @@ struct SenseField {
 
 void sense(const Planes& in, int32_t w, int32_t h, int32_t topology, SenseField& out);
 
-/// One ecosystem generation: sense -> feed -> metabolise -> reproduce ->
-/// disperse -> regrow, in that order, each stage reading only the previous
-/// stage's output. Single threaded on purpose for M2: the stages mutate the
-/// buffer they read, so banding them would make results depend on the split.
-/// The B/S path keeps its parallel kernel.
-void run_ecosystem(World& w);
+/// Runs one ecosystem generation and reports the census of the resulting
+/// board. The caller (World) records it: the pipeline must not call back into
+/// World's out-of-line members, because that would create a cycle inside
+/// libecosim_core.a, and ld resolves archives in a single pass.
+void run_ecosystem(World& w, SpeciesCounts* counts_out);
 
 }  // namespace ecosim

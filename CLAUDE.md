@@ -31,6 +31,8 @@ dotnet SDK 8/10、Avalonia 12.1.6、应用目标框架 `net8.0`。CMake generato
 - **native 不拥有时钟**：只有 `SimClock`（C# 后台线程）会调 `ecosim_world_step`。
   `NativeWorld` 内部那把 `_gate` 锁串行化所有 native 调用，因此"`grid_view` 借用的指针"和
   "直写 `WriteableBitmap` 后缓冲"才是安全的（附录 A.2）。任何新增的读原生内存的路径都要在同一把锁里。
+- `libecosim_core.a` 的成员之间不能形成引用循环（ld 单遍扫描归档，且它的错误消息在这个
+  shell 里完全看不见）。管线用出参汇报，`World` 记录；两边都要用的成员 inline 在头里。
 - 随机数是无状态派生（`splitmix64(seed, generation, cell_index)`，附录 A.5.2），
   所以"线程数不影响结果"是必须保住的性质，有测试盯着它。
 

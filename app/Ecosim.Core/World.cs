@@ -91,6 +91,11 @@ public sealed class World : IDisposable
 
     public SpeciesSnapshot Capture(bool includeHeat = false) => _native.Capture(includeHeat);
 
+    /// <summary>The last `count` generations' censuses, oldest first.</summary>
+    public IReadOnlyList<HistorySample> History(int count = 600) => _native.History(count);
+
+    public int HistoryLength => _native.HistoryLength;
+
     /// <summary>
     /// Captures exactly the planes the palette will ask for. The render path and
     /// the capture path used to agree by convention, and getting that wrong

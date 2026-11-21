@@ -114,6 +114,17 @@ per-cell 的阶段（sense、metabolise、regrow）直接按带并行。
 结果与线程数无关，由 `ecosystem_result_does_not_depend_on_configured_threads` 盯住；
 实测 2048² 混合食物网因此从 214 ms/代 降到 40.9 ms/代（5.2×）。
 
+## 静态库成员之间不能互相引用（归档循环）
+
+`libecosim_core.a` 里 `world.cpp` 调用 `run_ecosystem`（在 `rules/ecosystem.cpp`），
+所以 ecosystem 一侧**不能**再回调 world 的 Out-of-line 成员：GNU ld 对归档只做单向一遍扫描，
+循环依赖会留下未定义引用——而且这套工具链的 ld 是 GUI 子系统程序，它的诊断在管道里**一个字都看不到**，
+表现为"ld 退出码 1/5，无任何输出"。
+
+规则：管线通过出参向上汇报（`run_ecosystem(world, &counts)`），`World` 负责记录；
+需要被两边用的成员要么 inline 在头文件里（如 `World::record_generation`、`Pool& World::pool()`），
+要么放在依赖链的下游。
+
 ## 如何扩展
 
 - **加一个物种（M2）**：改 native 物种表 + 参数描述表；调色盘槽位已预留 16 个；
