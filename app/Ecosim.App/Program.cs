@@ -8,7 +8,10 @@ internal static class Program
     // the previewer uses.
     [STAThread]
     public static void Main(string[] args)
-        => BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    {
+        using var _ = Win32TimerResolution.UseOneMillisecond();
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
 
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()

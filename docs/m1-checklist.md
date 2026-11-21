@@ -31,6 +31,16 @@
 | 快捷键（Space/S/R/C/F/±/1-3/Ctrl+S/O/G） | ⚠️ 已实现，待人工点验 | — |
 | 引擎缺失时的中文错误面板 | ✅（单测） | `NativeLoadTests`；未截图 |
 
+## 事后修正：动画节奏
+
+用户实测反馈"卡成 PPT"。取证（临时帧探针）显示单帧工作量只有 0.25–0.5 ms，问题在**节奏**：
+渲染绑在时钟 tick 上，而 tick 落在 Windows 15.6ms 定时器格子上 → 帧间隔 45ms 抖动（≈22fps），
+`round()` 又把小数代丢掉 → 实际只有 ~22 代/秒。
+
+修法三条（详见 `docs/architecture.md`）：渲染泵与模拟解耦、`SimClock.BudgetFor` 累加小数代、
+`timeBeginPeriod(1)`。修后实测帧间隔以 16ms 为主（~55fps），60 代/秒设定下实际 ~58 代/秒。
+新增 8 条针对节奏数学的单元测试（原生 51 + 托管 70 全绿）。
+
 ## 已知缺口（诚实清单）
 
 1. **图案库只有 5 个**：block / beehive / blinker / glider / r_pentomino。

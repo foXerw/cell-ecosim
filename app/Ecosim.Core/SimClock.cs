@@ -165,9 +165,29 @@ public sealed class SimClock : IDisposable
         _cts?.Cancel();
     }
 
+    /// <summary>
+    /// How many generations to run this tick, and what to carry into the next.
+    ///
+    /// The carry is the point: rounding elapsed*target to an integer throws away
+    /// a fraction of a generation every tick, so a "30 gen/s" clock drifts down
+    /// to whatever the OS timer grid allows. Accumulating keeps the long-run rate
+    /// exact. Pure function, so the maths is testable without wall-clock timing.
+    /// </summary>
+    public static (int Steps, double Carry) BudgetFor(double elapsedSeconds, int targetGenPerSec,
+                                                      double carry)
+    {
+        if (elapsedSeconds < 0) elapsedSeconds = 0;
+        var total = carry + elapsedSeconds * Math.Max(targetGenPerSec, 1);
+        var steps = Math.Min((int)total, MaxCatchUpPerTick);
+        // A slow tick costs a skipped few generations, never a growing backlog:
+        // anything beyond what we can run now is dropped, not carried.
+        return (Math.Max(steps, 0), Math.Clamp(total - steps, 0.0, 1.0));
+    }
+
     private async Task RunAsync(CancellationToken token)
     {
         var previous = Stopwatch.GetTimestamp();
+        var carry = 0.0;
 
         while (!token.IsCancellationRequested)
         {
@@ -185,10 +205,9 @@ public sealed class SimClock : IDisposable
             var elapsedSeconds = (now - previous) / (double)Stopwatch.Frequency;
             previous = now;
 
-            // Catch up to the target rate, but never pile up work: a slow frame
-            // costs a dropped tick, not a growing backlog.
-            var due = (int)Math.Round(elapsedSeconds * TargetGenPerSec);
-            due = Math.Clamp(due, 1, MaxCatchUpPerTick);
+            var (due, nextCarry) = BudgetFor(elapsedSeconds, TargetGenPerSec, carry);
+            carry = nextCarry;
+            if (due <= 0) continue;
 
             var sw = Stopwatch.StartNew();
             try

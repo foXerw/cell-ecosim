@@ -57,6 +57,20 @@ SoA 四平面：`species(u8) / resource(u8) / energy(u16) / age(u16)`，双缓�
 Avalonia 侧位图是**一格一像素**，缩放平移靠 `RenderTransform` 的矩阵，
 所以一帧的代价 = 一次原生渲染 + 零次托管拷贝。
 
+### 显示节奏与模拟节奏必须解耦
+
+时钟 tick 驱动渲染曾经导致"幻灯片感"：`Task.Delay`/`DispatcherTimer` 落在 Windows 默认
+15.6ms 定时器格子上，33ms 的请求实际得到 31 或 47ms，实测帧间隔 45ms 抖动（≈22fps）、
+且 `round(elapsed*target)` 每 tick 丢掉小数代，速率进一步掉到 ~22 代/秒。现在三件事一起保证：
+
+1. **渲染泵**（`DispatcherTimer` @8ms，`DispatcherPriority.Render`）只在状态版本号变化时重绘，
+   显示节奏与模拟节奏无关；
+2. **`SimClock.BudgetFor`** 用累加器保留小数代，长期速率精确（纯函数，有单元测试）；
+3. **`timeBeginPeriod(1)`** 让 16ms 的泵真的每 16ms 触发。
+
+实测：帧间隔 16ms 为主（偶发 32ms），~55fps，60 代/秒设定下实际 ~58 代/秒。
+单帧工作量 0.25–0.5ms（其中 `Stats()` 全表扫描 0.2ms，M2 起改增量统计）。
+
 ## 图案与 RLE
 
 - RLE 严格 Golly 单状态语义（`b/o/$/!`，`#` 注释），多物种将来走 `.cew`（附录 A.6）。

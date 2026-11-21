@@ -17,15 +17,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private World _world;
     private SimClock _clock;
+    private readonly Avalonia.Threading.DispatcherTimer _pump;
     private readonly CanvasRenderer _renderer = new();
     private CanvasViewModel _canvas;
     private WriteableBitmap? _canvasBitmap;
 
     private int _alive;
     private long _generation;
+    private long _stateVersion;
+    private long _paintedVersion = -1;
     private double _stepMs;
     private bool _isRunning;
-    private int _speed = 30;
+    private int _speed = 60;
     private string _birthText = "3";
     private string _surviveText = "23";
     private int _newWidth = DefaultWidth;
@@ -38,6 +41,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _world = CreateWorld(DefaultWidth, DefaultHeight, WorldConfig.Default(DefaultWidth, DefaultHeight));
         _canvas = new CanvasViewModel(_world);
         _clock = CreateClock();
+
+        // The display runs on its own beat. Coupling repaints to simulation
+        // ticks made the animation inherit the OS timer grid (~45 ms here) and
+        // look like a slideshow; the pump paints at frame rate while the clock
+        // decides how many generations fit into each frame.
+        _pump = new Avalonia.Threading.DispatcherTimer(Avalonia.Threading.DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(8),
+        };
+        // Poll often, paint only when something actually changed: repainting an
+        // unchanged generation costs a texture upload and buys nothing.
+        _pump.Tick += (_, _) =>
+        {
+            if (_stateVersion != _paintedVersion) Redraw();
+        };
 
         ToggleRunCommand = new RelayCommand(ToggleRun);
         StepCommand = new RelayCommand(Step, () => !IsRunning);
@@ -238,6 +256,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void Redraw()
     {
+        _paintedVersion = _stateVersion;
         Alive = _world.Stats().Alive;
         _renderer.Draw(_world, Palette);
         if (!ReferenceEquals(_renderer.Bitmap, _canvasBitmap))
@@ -260,11 +279,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (_clock.IsRunning)
         {
             _clock.Stop();
+            _pump.Stop();
             IsRunning = false;
+            Redraw();
         }
         else
         {
             _clock.Start();
+            _pump.Start();
             IsRunning = true;
         }
     }
@@ -340,7 +362,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _canvas = new CanvasViewModel(_world);
         OnPropertyChanged(nameof(Canvas));
         _clock = CreateClock();
-        if (wasRunning) _clock.Start();
+        if (wasRunning)
+        {
+            _clock.Start();
+            _pump.Start();
+        }
+        else
+        {
+            _pump.Stop();
+        }
         IsRunning = wasRunning;
         Generation = 0;
     }
@@ -442,13 +472,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void OnTick(object? sender, TickEventArgs e)
     {
+        // Numbers only: the render pump paints. Painting here would tie the
+        // display rate to the simulation rate.
+        _stateVersion++;
         Generation = e.Generation;
         StepMs = e.StepMs;
-        Redraw();  // already on the UI thread: the clock captured its context
     }
 
     public void Dispose()
     {
+        _pump.Stop();
         _clock.Dispose();
         _world.Dispose();
     }
