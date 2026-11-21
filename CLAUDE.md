@@ -28,6 +28,9 @@ dotnet SDK 8/10、Avalonia 12.1.6、应用目标框架 `net8.0`。CMake generato
 - `app/Ecosim.Core/Interop/NativeMethods.cs` 是全仓库**唯一**允许出现 `DllImport` 的文件；
   `Ecosim.App` 只准用 `World` / `SimClock` 这些托管门面。
 - UI 里没有模拟逻辑，native 里没有 UI 概念、不读写文件路径。
+- **面板不得全表扫**：面板读数只能来自引擎本来就要做的遍历（普查顺手填历史与能量桶）
+  或有界结构（事件队列、快照环索引）；边界只走聚合值，不走平面。
+- `cew` 存档与 ABI 同规：只增不改，`version`/`header_size` 负责兼容；错误消息要能自己说明原因。
 - **native 不拥有时钟**：只有 `SimClock`（C# 后台线程）会调 `ecosim_world_step`。
   `NativeWorld` 内部那把 `_gate` 锁串行化所有 native 调用，因此"`grid_view` 借用的指针"和
   "直写 `WriteableBitmap` 后缓冲"才是安全的（附录 A.2）。任何新增的读原生内存的路径都要在同一把锁里。

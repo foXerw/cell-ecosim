@@ -131,12 +131,35 @@ per-cell 的阶段（sense、metabolise、regrow）直接按带并行。
 |---|---|---|
 | 叠加层 | `EcosimPalette.layer` + `ecosim_render_planes`（快照渲染，不碰引擎锁） | 每帧 |
 | 种群曲线 | `ecosim_history_count/get`：普查由内核/管线顺手算出，零额外扫表 | 4 Hz |
-| 能量分布 | 托管侧从带热力的快照算（`World.EnergyHistogram`） | 4 Hz |
+| 能量分布 | `ecosim_energy_histogram`：普查那一遍顺手填桶，边界只传 12 个整数 | 4 Hz |
 | 事件日志 | `EventQueue`（native 判定，带滞回），**拉取**而非回调 | 4 Hz |
 | 时间轴 | `SnapshotRing`（native 唯一存储，RLE 压缩 + 指数抽取） | 拖动时 |
 
 面板刷新有预算测试盯着（`AnalysisCostTests`：512² 一次刷新 < 40 ms），
 因为它跑在 UI 线程上——"顺手画个图"变成卡顿是这类应用最常见的自伤。
+
+**面板不得全表扫。** 每个面板读数都必须来自引擎"本来就要做的那一遍遍历"
+（普查顺手填历史样本与能量桶），或来自一个有界结构（事件队列、快照环的索引）。
+边界上只走聚合值：12 个桶、600 条样本、64 个事件——不走平面。
+反例是 M3 的第一版能量分布：托管侧拿带热力的快照自己数，等于每 250 ms
+把三个平面搬过边界再扫一遍；M4 把它换成普查内增量后，这条开销归零。
+
+## 存档容器 `cew`
+
+`ecosim_save_cew` / `ecosim_load_cew` 读写版本化容器（magic `CEWS`）：
+
+```
+Header(40B, static_assert 钉住)：magic[4] version header_size w h generation body_size
+                                plane_modes[3] reserved[9]
+body：params + 三个平面（species/energy/resource，各自 RLE 或 raw，与快照环同一取舍）
+```
+
+- **只增不改**：`version` 只允许向后读（旧版本可读，未来版本报"版本过新"），
+  `header_size` 让旧二进制跳过它不认识的新字段。
+- age 平面不存：与快照环同一取舍（恢复时归 0，代数随存档回拨，回放因此仍然精确）。
+- 错误消息是**可区分的中文**：太短 / magic 不对 / 版本过新 / 尺寸不符（消息里带两个尺寸）/
+  平面损坏。UI 直接把消息显示在通知行，所以"读档失败"必须自己说明原因。
+- RLE 与 cew 走不同解码路径：把 `.cew` 喂给 RLE 导入、或反之，都报格式错误而不是崩。
 
 ## 如何扩展
 
