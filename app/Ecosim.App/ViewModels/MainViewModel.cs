@@ -39,8 +39,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         _world = CreateFresh(StartupConfig());
         _canvas = new CanvasViewModel(_world);
+        _canvas.LayerChanged += (_, _) => SyncLayer();
         Params = new ParamsModel(_world);
         _clock = CreateClock();
+        ApplyStartupLayer();
 
         // The display runs on its own beat. Coupling repaints to simulation
         // ticks made the animation inherit the OS timer grid (~45 ms here) and
@@ -105,7 +107,28 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public WriteableBitmap? CanvasBitmap => _canvasBitmap;
 
-    public Palette Palette { get; } = Palette.Default;
+    /// <summary>Colours plus the layer the canvas asked for; the heat layers
+    /// need the clock to capture more planes, so the two stay in step here.</summary>
+    public Palette Palette { get; private set; } = Palette.Default;
+
+    /// <summary>ECOSIM_LAYER=species|energy|resource|age, so a heat map can be
+    /// reproduced from the command line rather than clicked into existence.</summary>
+    private void ApplyStartupLayer()
+    {
+        var layer = Environment.GetEnvironmentVariable("ECOSIM_LAYER");
+        if (string.IsNullOrWhiteSpace(layer)) return;
+        if (Enum.TryParse<RenderLayer>(layer, ignoreCase: true, out var parsed))
+        {
+            _canvas.Layer = parsed;
+        }
+    }
+
+    private void SyncLayer()
+    {
+        Palette = Palette.Default.WithLayer(_canvas.Layer);
+        _clock.CaptureHeat = Palette.NeedsHeatPlanes;
+        Redraw();
+    }
 
     public IReadOnlyList<Pattern> Patterns { get; } = PatternLibrary.All;
 
@@ -290,8 +313,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public event EventHandler? FramePainted;
 
     /// <summary>Captures the board and paints it. Used for immediate feedback
-    /// while paused (painting, stepping, imports).</summary>
-    public void Redraw() => PaintSnapshot(_world.Capture());
+    /// while paused (painting, stepping, imports). The capture has to match the
+    /// palette: asking for a heat map out of a thin snapshot is a bug here, not
+    /// a reason to bother the user.</summary>
+    public void Redraw() => PaintSnapshot(_world.CaptureFor(Palette));
 
     private void PaintSnapshot(SpeciesSnapshot snapshot)
     {
@@ -401,6 +426,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         _world = carry is null ? CreateFresh(config) : CreateCarried(config, carry);
         _canvas = new CanvasViewModel(_world);
+        _canvas.LayerChanged += (_, _) => SyncLayer();
         Params = new ParamsModel(_world);
         OnPropertyChanged(nameof(Canvas));
         OnPropertyChanged(nameof(Params));

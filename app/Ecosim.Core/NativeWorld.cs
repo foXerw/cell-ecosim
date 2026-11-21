@@ -158,7 +158,13 @@ public sealed class NativeWorld : SafeHandle
 
     /// <summary>Copies the species plane plus stats out in one locked section.
     /// The result is immutable, so everything downstream can work lock-free.</summary>
-    public SpeciesSnapshot Capture()
+    /// <summary>
+    /// Copies the planes out in one locked section. `includeHeat` also takes
+    /// energy/age/resource, which the heat layers need and the species layer
+    /// does not - three more buffers per frame is not something to pay for
+    /// when nobody is looking at them.
+    /// </summary>
+    public SpeciesSnapshot Capture(bool includeHeat = false)
     {
         lock (_gate)
         {
@@ -166,13 +172,79 @@ public sealed class NativeWorld : SafeHandle
             var view = EcosimGridViewDto.Create();
             ErrorTranslation.ThrowIfFailed("grid_view",
                 NativeMethods.ecosim_world_grid_view(handle, ref view));
-            var bytes = new byte[(long)view.w * view.h];
-            Marshal.Copy(view.species, bytes, 0, bytes.Length);
+            var cells = (long)view.w * view.h;
+            var species = new byte[cells];
+            Marshal.Copy(view.species, species, 0, species.Length);
+
+            byte[]? energy = null, age = null, resource = null;
+            if (includeHeat)
+            {
+                energy = new byte[cells * 2];
+                age = new byte[cells * 2];
+                resource = new byte[cells];
+                Copy(view.energy, energy);
+                Copy(view.age, age);
+                Marshal.Copy(view.resource, resource, 0, resource.Length);
+            }
 
             var stats = EcosimStatsDto.Create();
             ErrorTranslation.ThrowIfFailed("stats", NativeMethods.ecosim_stats(handle, ref stats));
-            return new SpeciesSnapshot(bytes, view.w, view.h, (long)stats.generation,
-                                       stats.alive_count);
+            return new SpeciesSnapshot(species, view.w, view.h, (long)stats.generation,
+                                       stats.alive_count, energy, age, resource);
+        }
+    }
+
+    private static void Copy(IntPtr source, byte[] destination)
+    {
+        // u16 planes copied as bytes: the renderer wants a pointer, not a
+        // managed reinterpretation every frame.
+        var shortBuffer = new short[destination.Length / 2];
+        Marshal.Copy(source, shortBuffer, 0, shortBuffer.Length);
+        Buffer.BlockCopy(shortBuffer, 0, destination, 0, destination.Length);
+    }
+
+    /// <summary>Renders a snapshot. Takes no lock: the data is immutable and
+    /// the engine function needs no world.</summary>
+    public static void RenderSnapshot(SpeciesSnapshot snapshot, IntPtr bgra, int rowPitch,
+                                      in Palette palette)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var heat = palette.NeedsHeatPlanes;
+        if (heat && !snapshot.HasHeatPlanes)
+        {
+            throw new EcosimException("热力叠加层需要带能量/年龄/resource 的快照，" +
+                                      "请让时钟以 CaptureHeat 模式采集");
+        }
+
+        var pin = GCHandle.Alloc(snapshot.Species, GCHandleType.Pinned);
+        GCHandle energyPin = default, agePin = default, resourcePin = default;
+        try
+        {
+            IntPtr energyPtr = IntPtr.Zero, agePtr = IntPtr.Zero, resourcePtr = IntPtr.Zero;
+            if (heat)
+            {
+                energyPin = GCHandle.Alloc(snapshot.Energy!, GCHandleType.Pinned);
+                agePin = GCHandle.Alloc(snapshot.Age!, GCHandleType.Pinned);
+                resourcePin = GCHandle.Alloc(snapshot.Resource!, GCHandleType.Pinned);
+                energyPtr = energyPin.AddrOfPinnedObject();
+                agePtr = agePin.AddrOfPinnedObject();
+                resourcePtr = resourcePin.AddrOfPinnedObject();
+            }
+            var dto = palette.ToDto();
+            ErrorTranslation.ThrowIfFailed("render_planes",
+                NativeMethods.ecosim_render_planes(pin.AddrOfPinnedObject(), energyPtr, agePtr,
+                                                   resourcePtr, snapshot.Width, snapshot.Height,
+                                                   bgra, rowPitch, ref dto));
+        }
+        finally
+        {
+            pin.Free();
+            if (heat)
+            {
+                energyPin.Free();
+                agePin.Free();
+                resourcePin.Free();
+            }
         }
     }
 

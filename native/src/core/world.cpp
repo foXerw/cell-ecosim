@@ -190,12 +190,11 @@ int32_t World::render_frame(uint8_t* bgra, int32_t row_pitch, const EcosimPalett
     set_error("render_frame 需要非空缓冲与调色盘");
     return ECOSIM_ERR_INVALID;
   }
-  if (palette->struct_size < static_cast<int32_t>(sizeof(EcosimPalette))) {
-    set_error("EcosimPalette.struct_size 太小");
-    return ECOSIM_ERR_SIZE;
-  }
-  return render::species_to_bgra(grid_.cur().species.data(), grid_.w(), grid_.h(), bgra,
-                                 row_pitch, palette);
+  // struct_size tolerance (68 = pre-layer palette) is the renderer's business.
+  const Planes& cur = grid_.cur();
+  return render::species_to_bgra(cur.species.data(), grid_.w(), grid_.h(), bgra, row_pitch,
+                                 palette, cur.energy.data(), cur.age.data(),
+                                 cur.resource.data());
 }
 
 int32_t World::load_species(const uint8_t* species, int32_t count) {

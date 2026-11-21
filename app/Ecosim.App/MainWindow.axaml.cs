@@ -48,6 +48,11 @@ public partial class MainWindow : Window
         vm.FramePainted += (_, _) => CanvasImage.InvalidateVisual();
         AttachCanvas(vm);
 
+        // The view model may already have painted during its own construction
+        // (a startup heat layer does exactly that), so the bitmap has to be
+        // handed over here rather than waiting for a change notification that
+        // already fired before this view subscribed.
+        CanvasImage.Source = vm.CanvasBitmap;
         vm.Redraw();
     }
 

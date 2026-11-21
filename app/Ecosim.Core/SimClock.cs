@@ -81,6 +81,11 @@ public sealed class SimClock : IDisposable
     /// </summary>
     public SpeciesSnapshot? LatestSnapshot { get; private set; }
 
+    /// <summary>Set when the view is showing a heat layer: the snapshot then
+    /// carries energy/age/resource too. Off by default because it is three
+    /// extra buffer copies per tick.</summary>
+    public bool CaptureHeat { get; set; }
+
     public void Start()
     {
         lock (_sync)
@@ -220,7 +225,7 @@ public sealed class SimClock : IDisposable
             try
             {
                 _world.Step(due);
-                LatestSnapshot = _world.Capture();
+                LatestSnapshot = _world.Capture(CaptureHeat);
             }
             catch (Exception ex)
             {

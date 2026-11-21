@@ -49,6 +49,11 @@ internal static class NativeMethods
                                                   int row_pitch, ref EcosimPaletteDto palette);
 
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_render_planes(IntPtr species, IntPtr energy, IntPtr age,
+                                                  IntPtr resource, int w, int h, IntPtr bgra,
+                                                  int row_pitch, ref EcosimPaletteDto palette);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     public static extern int ecosim_paint(IntPtr world, EcosimPaintOpDto[] ops, int count);
 
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]

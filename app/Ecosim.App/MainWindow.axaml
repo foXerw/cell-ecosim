@@ -88,6 +88,20 @@
             <Button Content="⬇ 放置到中心" Command="{Binding ApplyPatternCommand}" />
           </StackPanel>
 
+          <StackPanel Spacing="6">
+            <TextBlock Text="叠加层" FontWeight="SemiBold" />
+            <WrapPanel>
+              <Button Content="物种" Command="{Binding Canvas.SelectLayerCommand}"
+                      CommandParameter="{x:Static core:RenderLayer.Species}" Margin="0,0,6,6" />
+              <Button Content="能量" Command="{Binding Canvas.SelectLayerCommand}"
+                      CommandParameter="{x:Static core:RenderLayer.Energy}" Margin="0,0,6,6" />
+              <Button Content="resource" Command="{Binding Canvas.SelectLayerCommand}"
+                      CommandParameter="{x:Static core:RenderLayer.Resource}" Margin="0,0,6,6" />
+              <Button Content="年龄" Command="{Binding Canvas.SelectLayerCommand}"
+                      CommandParameter="{x:Static core:RenderLayer.Age}" />
+            </WrapPanel>
+          </StackPanel>
+
           <StackPanel Spacing="4">
             <TextBlock Text="参数（由引擎描述表生成）" FontWeight="SemiBold" />
             <ItemsControl ItemsSource="{Binding Params.Groups}">

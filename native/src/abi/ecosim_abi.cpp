@@ -26,7 +26,8 @@ static_assert(offsetof(EcosimConfig, survive_mask) == 33, "survive_mask offset d
 static_assert(offsetof(EcosimConfig, rng_seed) == 44, "rng_seed offset drift");
 static_assert(sizeof(EcosimGridView) == 48, "EcosimGridView layout drift");
 static_assert(offsetof(EcosimGridView, species) == 16, "species pointer drift");
-static_assert(sizeof(EcosimPalette) == 68, "EcosimPalette layout drift");
+static_assert(sizeof(EcosimPalette) == 72, "EcosimPalette layout drift");
+static_assert(offsetof(EcosimPalette, layer) == 68, "palette layer offset drift");
 static_assert(sizeof(EcosimPaintOp) == 24, "EcosimPaintOp layout drift");
 static_assert(sizeof(EcosimStats) == 88, "EcosimStats layout drift");
 static_assert(offsetof(EcosimStats, generation) == 4, "generation offset drift");
@@ -159,7 +160,18 @@ int32_t ecosim_render_frame(const EcosimWorld* world, uint8_t* bgra, int32_t row
 int32_t ecosim_render_species(const uint8_t* species, int32_t w, int32_t h, uint8_t* bgra,
                               int32_t row_pitch, const EcosimPalette* palette) {
   ecosim::clear_error();
-  return ecosim::render::species_to_bgra(species, w, h, bgra, row_pitch, palette);
+  // A bare plane has no energy/age/resource to consult, so heat layers are
+  // refused by the callee rather than silently rendering the species colours.
+  return ecosim::render::species_to_bgra(species, w, h, bgra, row_pitch, palette, nullptr,
+                                         nullptr, nullptr);
+}
+
+int32_t ecosim_render_planes(const uint8_t* species, const uint16_t* energy,
+                             const uint16_t* age, const uint8_t* resource, int32_t w, int32_t h,
+                             uint8_t* bgra, int32_t row_pitch, const EcosimPalette* palette) {
+  ecosim::clear_error();
+  return ecosim::render::species_to_bgra(species, w, h, bgra, row_pitch, palette, energy, age,
+                                         resource);
 }
 
 int32_t ecosim_paint(EcosimWorld* world, const EcosimPaintOp* ops, int32_t count) {

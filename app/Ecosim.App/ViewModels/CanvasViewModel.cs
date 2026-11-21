@@ -24,6 +24,7 @@ public sealed class CanvasViewModel : ObservableObject
     private bool _viewportInitialised;
 
     private CanvasTool _tool = CanvasTool.Draw;
+    private RenderLayer _layer = RenderLayer.Species;
     private int _brushRadius = 1;
     private int _species = 1;
     private (int X, int Y)? _hoveredCell;
@@ -39,9 +40,31 @@ public sealed class CanvasViewModel : ObservableObject
         {
             if (p is CanvasTool tool) Tool = tool;
         });
+        SelectLayerCommand = new RelayCommand(p =>
+        {
+            if (p is RenderLayer layer) Layer = layer;
+        });
     }
 
     public ICommand SelectToolCommand { get; }
+
+    public ICommand SelectLayerCommand { get; }
+
+    /// <summary>What the canvas is coloured by. Heat layers also make the clock
+    /// capture the extra planes.</summary>
+    public RenderLayer Layer
+    {
+        get => _layer;
+        set
+        {
+            if (!Set(ref _layer, value)) return;
+            LayerChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>The view model cannot reach the clock, so it raises this and
+    /// MainViewModel turns CaptureHeat on or off.</summary>
+    public event EventHandler? LayerChanged;
 
     public Size CanvasSize => _canvasSize;
 

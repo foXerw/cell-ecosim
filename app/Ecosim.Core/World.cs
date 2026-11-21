@@ -89,7 +89,20 @@ public sealed class World : IDisposable
         _native.RenderFrame(buffer.AsMemory(), buffer.RowPitch, palette);
     }
 
-    public SpeciesSnapshot Capture() => _native.Capture();
+    public SpeciesSnapshot Capture(bool includeHeat = false) => _native.Capture(includeHeat);
+
+    /// <summary>
+    /// Captures exactly the planes the palette will ask for. The render path and
+    /// the capture path used to agree by convention, and getting that wrong
+    /// surfaces as a confusing "engine failed to start" dialog; this is the one
+    /// call that cannot be mismatched.
+    /// </summary>
+    public SpeciesSnapshot CaptureFor(in Palette palette) => Capture(palette.NeedsHeatPlanes);
+
+    /// <summary>Paints an immutable snapshot; no engine lock is taken.</summary>
+    public static void RenderSnapshotInto(SpeciesSnapshot snapshot, IntPtr bgra, int rowPitch,
+                                          in Palette palette)
+        => NativeWorld.RenderSnapshot(snapshot, bgra, rowPitch, palette);
 
     /// <summary>Everything the UI needs to draw a slider per tunable.</summary>
     public static IReadOnlyList<ParamDescription> ParamDescriptions =>
@@ -101,30 +114,6 @@ public sealed class World : IDisposable
     /// refused by the engine, which names the allowed range in the message.</summary>
     public void SetParam(int index, int value) => _native.SetParam(index, value);
 
-    /// <summary>
-    /// Paints a snapshot into caller-owned BGRA memory. Static on purpose: it
-    /// touches no world and takes no lock, which is what lets the render pump
-    /// run while a long step holds the engine lock.
-    /// </summary>
-    public static void RenderSnapshotInto(SpeciesSnapshot snapshot, IntPtr bgra, int rowPitch,
-                                          in Palette palette)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        var pin = System.Runtime.InteropServices.GCHandle.Alloc(snapshot.Species,
-                                                                System.Runtime.InteropServices.GCHandleType.Pinned);
-        try
-        {
-            var dto = palette.ToDto();
-            ErrorTranslation.ThrowIfFailed("render_species",
-                Interop.NativeMethods.ecosim_render_species(pin.AddrOfPinnedObject(),
-                                                            snapshot.Width, snapshot.Height,
-                                                            bgra, rowPitch, ref dto));
-        }
-        finally
-        {
-            pin.Free();
-        }
-    }
 
     /// <summary>Zero-copy variant for a locked bitmap's back buffer.</summary>
     public void RenderInto(IntPtr bgra, int rowPitch, in Palette palette)

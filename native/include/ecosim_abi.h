@@ -97,9 +97,20 @@ typedef struct EcosimGridView {
   const uint16_t* age;
 } EcosimGridView;
 
+/* What a frame is coloured by. Appended to EcosimPalette rather than replacing
+ * it: a caller built before milestone M3 passes struct_size = 68 and the
+ * engine reads no further, which is the "只增不改" rule in action. */
+typedef enum EcosimRenderLayer {
+  ECOSIM_LAYER_SPECIES = 0,
+  ECOSIM_LAYER_ENERGY = 1,
+  ECOSIM_LAYER_RESOURCE = 2,
+  ECOSIM_LAYER_AGE = 3
+} EcosimRenderLayer;
+
 typedef struct EcosimPalette {
   int32_t struct_size;
   uint32_t cell_bgra[ECOSIM_MAX_SPECIES];  /* indexed by species */
+  int32_t layer;                           /* EcosimRenderLayer, 0 when absent */
 } EcosimPalette;
 
 typedef struct EcosimPaintOp {
@@ -186,6 +197,14 @@ ECOSIM_API int32_t ECOSIM_CALL ecosim_render_frame(const EcosimWorld* world, uin
 ECOSIM_API int32_t ECOSIM_CALL ecosim_render_species(const uint8_t* species, int32_t w,
                                                      int32_t h, uint8_t* bgra, int32_t row_pitch,
                                                      const EcosimPalette* palette);
+
+/* Same, but from a snapshot that also carries the heat planes. Pass null for
+ * energy/age/resource to ask for the species layer only. */
+ECOSIM_API int32_t ECOSIM_CALL ecosim_render_planes(const uint8_t* species, const uint16_t* energy,
+                                                    const uint16_t* age, const uint8_t* resource,
+                                                    int32_t w, int32_t h, uint8_t* bgra,
+                                                    int32_t row_pitch,
+                                                    const EcosimPalette* palette);
 
 /* --- input ------------------------------------------------------------ */
 ECOSIM_API int32_t ECOSIM_CALL ecosim_paint(EcosimWorld* world, const EcosimPaintOp* ops,
