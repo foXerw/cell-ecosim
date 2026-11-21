@@ -43,6 +43,10 @@ public partial class MainWindow : Window
             vm.Redraw();
         };
         vm.PropertyChanged += OnViewModelChanged;
+        // Mutating the WriteableBitmap's pixels does not mark the Image visual
+        // dirty in Avalonia 12's composition renderer; without this the canvas
+        // shows a stale texture until something else invalidates the window.
+        vm.FramePainted += (_, _) => CanvasImage.InvalidateVisual();
         AttachCanvas(vm);
 
         CanvasImage.Source = vm.CanvasBitmap;

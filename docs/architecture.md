@@ -71,6 +71,12 @@ Avalonia 侧位图是**一格一像素**，缩放平移靠 `RenderTransform` 的
 实测：帧间隔 16ms 为主（偶发 32ms），~55fps，60 代/秒设定下实际 ~58 代/秒。
 单帧工作量 0.25–0.5ms（其中 `Stats()` 全表扫描 0.2ms，M2 起改增量统计）。
 
+**改过位图像素必须显式失效 Image 视觉。** Avalonia 12 的合成渲染器不会因为
+`WriteableBitmap.Lock()` 写入内容就把那个视觉标脏：它会继续用已上传的旧纹理。
+症状是"画面静止，除非拖动窗口/平移才跳出新内容"。因此 `MainViewModel.Redraw()` 末尾
+触发 `FramePainted`，视图订阅后调用 `CanvasImage.InvalidateVisual()`。
+验证方式很直接：相隔 5 秒截同一块画布区域做哈希，修前完全相同，修后不同。
+
 ## 图案与 RLE
 
 - RLE 严格 Golly 单状态语义（`b/o/$/!`，`#` 注释），多物种将来走 `.cew`（附录 A.6）。

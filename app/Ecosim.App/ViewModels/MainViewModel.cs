@@ -220,7 +220,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public string StatusText
         => $"代 {Generation:N0} ｜ 存活 {Alive:N0} ｜ {_world.Width}×{_world.Height} ｜ "
          + $"步进 {StepMs:F2} ms ｜ "
-         + (IsRunning ? $"播放中 {Speed:N0} 代/秒" : "已暂停");
+         + (IsRunning ? $"播放中 {Speed:N0} 代/秒" : "已暂停")
+;
 
     // ---- commands --------------------------------------------------------
 
@@ -254,6 +255,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     // ---- behaviour -------------------------------------------------------
 
+    /// <summary>Raised after the bitmap's pixels changed. The view must
+    /// invalidate the Image visual: mutating a WriteableBitmap does not, by
+    /// itself, mark the visual dirty, so the compositor keeps showing the
+    /// previously uploaded texture (that is exactly the "frozen until you drag"
+    /// bug this event exists to prevent).</summary>
+    public event EventHandler? FramePainted;
+
     public void Redraw()
     {
         _paintedVersion = _stateVersion;
@@ -264,6 +272,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _canvasBitmap = _renderer.Bitmap;
             OnPropertyChanged(nameof(CanvasBitmap));
         }
+        FramePainted?.Invoke(this, EventArgs.Empty);
     }
 
     public void ZoomAtCentre(double factor)
