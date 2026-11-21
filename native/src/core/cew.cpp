@@ -1,5 +1,6 @@
 #include "core/cew.h"
 
+#include <cstdio>
 #include <cstring>
 
 #include "core/plane_codec.h"
@@ -7,16 +8,6 @@
 
 namespace ecosim {
 namespace cew {
-
-namespace {
-
-void copy_string(char* dst, size_t cap, const char* src) {
-  size_t i = 0;
-  for (; i + 1 < cap && src[i] != '\0'; ++i) dst[i] = src[i];
-  dst[i] = '\0';
-}
-
-}  // namespace
 
 int32_t worst_case_size(int32_t w, int32_t h) {
   const int64_t cells = static_cast<int64_t>(w) * h;
@@ -31,11 +22,8 @@ int32_t encode(const World& world, std::vector<uint8_t>& out) {
   const Grid& grid = world.grid();
   const Planes& cur = grid.cur();
 
-  std::vector<uint8_t> body;
-  codec::append_bytes(body, &world.params(), sizeof(EcosimParams));
-
-  uint8_t* modes = nullptr;
   std::vector<uint8_t> planes;
+  planes.reserve(static_cast<size_t>(grid.count()));
   uint8_t mode_species = codec::kModeRaw;
   uint8_t mode_energy = codec::kModeRaw;
   uint8_t mode_resource = codec::kModeRaw;
@@ -44,22 +32,24 @@ int32_t encode(const World& world, std::vector<uint8_t>& out) {
   codec::encode_plane(cur.resource, planes, mode_resource);
 
   Header header{};
-  copy_string(header.magic, sizeof(header.magic), "CEWS");
+  // A fixed four-byte tag, not a string. Treating it as one truncated the
+  // signature to three letters, and every reader then correctly called the
+  // archive "not a Cell Ecosim file".
+  std::memcpy(header.magic, "CEWS", sizeof(header.magic));
   header.version = kVersion;
   header.header_size = sizeof(Header);
   header.w = static_cast<uint32_t>(grid.w());
   header.h = static_cast<uint32_t>(grid.h());
   header.generation = world.generation();
   header.body_size = static_cast<uint32_t>(sizeof(EcosimParams) + planes.size());
-  modes = header.plane_modes;
-  modes[0] = mode_species;
-  modes[1] = mode_energy;
-  modes[2] = mode_resource;
+  header.plane_modes[0] = mode_species;
+  header.plane_modes[1] = mode_energy;
+  header.plane_modes[2] = mode_resource;
 
   out.clear();
-  out.reserve(sizeof(header) + body.size() + planes.size());
+  out.reserve(sizeof(header) + sizeof(EcosimParams) + planes.size());
   codec::append_bytes(out, &header, sizeof(header));
-  out.insert(out.end(), body.begin(), body.end());
+  codec::append_bytes(out, &world.params(), sizeof(EcosimParams));
   out.insert(out.end(), planes.begin(), planes.end());
   return ECOSIM_OK;
 }
@@ -72,7 +62,7 @@ int32_t decode(const uint8_t* data, size_t size, World& world, std::string& why)
 
   Header header{};
   std::memcpy(&header, data, sizeof(header));
-  if (std::memcmp(header.magic, "CEWS", 4) != 0) {
+  if (std::memcmp(header.magic, "CEWS", sizeof(header.magic)) != 0) {
     why = "不是 Cell Ecosim 存档（缺少 CEWS 魔数）";
     return ECOSIM_ERR_INVALID;
   }
@@ -91,7 +81,7 @@ int32_t decode(const uint8_t* data, size_t size, World& world, std::string& why)
 
   const uint64_t cells = static_cast<uint64_t>(header.w) * header.h;
   if (cells != world.grid().count()) {
-    char msg[160];
+    char msg[192];
     std::snprintf(msg, sizeof(msg), "存档是 %ux%u（%llu 格），当前网格 %dx%d（%zu 格），尺寸不符",
                   header.w, header.h, static_cast<unsigned long long>(cells), world.grid().w(),
                   world.grid().h(), world.grid().count());
@@ -116,9 +106,10 @@ int32_t decode(const uint8_t* data, size_t size, World& world, std::string& why)
   const uint8_t* body = data + cursor;
   const size_t remaining = size - cursor;
   size_t inner = 0;
-  bool ok = codec::decode_plane(body, remaining, inner, header.plane_modes[0], cur.species) &&
-            codec::decode_plane(body, remaining, inner, header.plane_modes[1], cur.energy) &&
-            codec::decode_plane(body, remaining, inner, header.plane_modes[2], cur.resource);
+  const bool ok =
+      codec::decode_plane(body, remaining, inner, header.plane_modes[0], cur.species) &&
+      codec::decode_plane(body, remaining, inner, header.plane_modes[1], cur.energy) &&
+      codec::decode_plane(body, remaining, inner, header.plane_modes[2], cur.resource);
   if (!ok) {
     why = "存档数据损坏：平面在声明长度之前就结束了";
     return ECOSIM_ERR_INVALID;

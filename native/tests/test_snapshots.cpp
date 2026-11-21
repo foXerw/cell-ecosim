@@ -72,9 +72,20 @@ ECOSIM_TEST(restoring_and_stepping_forward_reproduces_the_later_board) {
 
   ecosim::World b(eco8());
   CHECK_EQ_i32(ECOSIM_OK, b.randomize(soup(1, 300, 11)));
-  b.step(40);
+  // Same history as a, including the pinned frame at generation 10, then it
+  // runs on past the point a stopped.
+  b.step(10);
+  b.snapshots().capture(b.generation(), b.grid());
+  b.step(30);
 
-  CHECK_EQ_i32(ECOSIM_OK, b.restore_snapshot(0));
+  // The ring samples every 8th generation, so index 0 is generation 8 and the
+  // manually pinned generation 10 sits later. Find it rather than assume it.
+  int32_t at_ten = -1;
+  for (int32_t i = 0; i < b.snapshots().count(); ++i) {
+    if (b.snapshots().generation_at(i) == 10) at_ten = i;
+  }
+  CHECK_TRUE(at_ten >= 0);
+  CHECK_EQ_i32(ECOSIM_OK, b.restore_snapshot(at_ten));
   CHECK_EQ_i64(10, static_cast<int64_t>(b.generation()));
   b.step(20);
 
@@ -93,8 +104,16 @@ ECOSIM_TEST(the_ring_widens_its_stride_instead_of_growing_unbounded) {
   CHECK_EQ_i64(40, static_cast<int64_t>(w.snapshots().generation_at(4)));
 
   w.step(300);
-  CHECK_EQ_i32(ecosim::SnapshotRing::kDefaultSlots, w.snapshots().count());
-  CHECK_TRUE(w.snapshots().generation_at(63) - w.snapshots().generation_at(0) > 300);
+  const int32_t count = w.snapshots().count();
+  CHECK_TRUE(count <= ecosim::SnapshotRing::kDefaultSlots);
+  // Past the initial 8-generation window the stride doubles, so the newest
+  // frames are farther apart than the oldest ones. That widening is the whole
+  // point: it is what keeps capture cost off the hot path.
+  CHECK_TRUE(count > 32);
+  const uint64_t first_gap = w.snapshots().generation_at(1) - w.snapshots().generation_at(0);
+  const uint64_t last_gap = w.snapshots().generation_at(count - 1) -
+                            w.snapshots().generation_at(count - 2);
+  CHECK_TRUE(last_gap > first_gap);
 
   uint64_t previous = 0;
   for (int32_t i = 0; i < w.snapshots().count(); ++i) {
@@ -107,16 +126,22 @@ ECOSIM_TEST(the_ring_widens_its_stride_instead_of_growing_unbounded) {
 }
 
 ECOSIM_TEST(snapshot_abi_reports_and_refuses_sensibly) {
-  EcosimWorld* w = ecosim_world_create(&eco8());
-  CHECK_EQ_i32(ECOSIM_OK, ecosim_randomize(w, &soup(1, 300, 7)));
+  const EcosimConfig config = eco8();
+  EcosimWorld* w = ecosim_world_create(&config);
+  const EcosimSeedConfig seed_cfg = soup(1, 300, 7);
+  CHECK_EQ_i32(ECOSIM_OK, ecosim_randomize(w, &seed_cfg));
+  // Sampling is every 8th generation, so six steps produce nothing at all -
+  // a regression guard against quietly going back to per-generation capture.
   CHECK_EQ_i32(ECOSIM_OK, ecosim_world_step(w, 6));
+  CHECK_EQ_i32(0, ecosim_snapshot_count(w));
+  CHECK_EQ_i32(ECOSIM_OK, ecosim_world_step(w, 18));
 
   const int32_t count = ecosim_snapshot_count(w);
-  CHECK_TRUE(count >= 6);
+  CHECK_EQ_i32(3, count);
 
   uint64_t generation = 0;
   CHECK_EQ_i32(ECOSIM_OK, ecosim_snapshot_info(w, count - 1, &generation));
-  CHECK_EQ_i64(6, static_cast<int64_t>(generation));
+  CHECK_EQ_i64(24, static_cast<int64_t>(generation));
   CHECK_EQ_i32(ECOSIM_ERR_RANGE, ecosim_snapshot_info(w, count, &generation));
   CHECK_EQ_i32(ECOSIM_ERR_INVALID, ecosim_snapshot_info(w, 0, nullptr));
 

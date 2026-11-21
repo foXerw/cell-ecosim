@@ -107,6 +107,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         NewWorldCommand = new RelayCommand(NewWorld);
         SaveRleCommand = new AsyncRelayCommand(_ => SaveRleAsync());
         OpenRleCommand = new AsyncRelayCommand(_ => OpenRleAsync());
+        SaveCewCommand = new AsyncRelayCommand(_ => SaveCewAsync());
+        OpenCewCommand = new AsyncRelayCommand(_ => OpenCewAsync());
         ExitReviewCommand = new RelayCommand(ExitReview);
         ToggleTopologyCommand = new RelayCommand(() =>
         {
@@ -361,6 +363,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ICommand NewWorldCommand { get; }
 
     public ICommand SaveRleCommand { get; }
+
+    public ICommand SaveCewCommand { get; }
+
+    public ICommand OpenCewCommand { get; }
 
     public ICommand OpenRleCommand { get; }
 
@@ -650,6 +656,50 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return clock;
     }
 
+    private async Task SaveCewAsync()
+    {
+        var provider = await StorageProviderFactory().ConfigureAwait(true);
+        if (provider is null) return;
+        var file = await provider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "保存世界（.cew）",
+            SuggestedFileName = "ecosim.cew",
+        }).ConfigureAwait(true);
+        if (file is null) return;
+
+        await using var stream = await file.OpenWriteAsync().ConfigureAwait(true);
+        await stream.WriteAsync(_world.SaveCew()).ConfigureAwait(true);
+        Notice = $"已保存到 {file.Name}（含物种/能量/resource 与参数）";
+    }
+
+    private async Task OpenCewAsync()
+    {
+        var provider = await StorageProviderFactory().ConfigureAwait(true);
+        if (provider is null) return;
+        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "打开世界（.cew）",
+            AllowMultiple = false,
+        }).ConfigureAwait(true);
+        if (files.Count == 0) return;
+
+        await using var stream = await files[0].OpenReadAsync().ConfigureAwait(true);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory).ConfigureAwait(true);
+
+        try
+        {
+            _world.LoadCew(memory.ToArray());
+            Notice = $"已读取 {files[0].Name}，回到第 {_world.Generation:N0} 代";
+        }
+        catch (EcosimException ex)
+        {
+            Notice = $"读取失败：{ex.Message}";
+        }
+        RefreshHistory();
+        Redraw();
+    }
+
     private async Task SaveRleAsync()
     {
         var provider = await StorageProviderFactory().ConfigureAwait(true);
@@ -664,7 +714,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         await using var stream = await file.OpenWriteAsync().ConfigureAwait(true);
         await using var writer = new StreamWriter(stream);
         await writer.WriteAsync(_world.ToRle()).ConfigureAwait(true);
-        Notice = $"已导出到 {file.Name}";
+        Notice = _world.Config.Mode == RuleMode.Ecosystem
+            ? $"已导出到 {file.Name}（注意：RLE 是单状态格式，物种与能量信息不在其中，" +
+              "请用 .cew 保存生态）"
+            : $"已导出到 {file.Name}";
     }
 
     private async Task OpenRleAsync()

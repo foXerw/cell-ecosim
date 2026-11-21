@@ -130,7 +130,8 @@ ECOSIM_TEST(a_size_mismatch_names_both_boards) {
 }
 
 ECOSIM_TEST(the_abi_saves_and_loads_through_buffers) {
-  EcosimWorld* source = ecosim_world_create(&cfg_for(12, 12));
+  const EcosimConfig source_cfg = cfg_for(12, 12);
+  EcosimWorld* source = ecosim_world_create(&source_cfg);
   EcosimSeedConfig seed{};
   seed.struct_size = sizeof(seed);
   seed.species = 2;
@@ -154,7 +155,8 @@ ECOSIM_TEST(the_abi_saves_and_loads_through_buffers) {
                ecosim_save_cew(source, buffer.data(), written - 1, &ignored));
   CHECK_TRUE(std::strlen(ecosim_last_error()) > 0);
 
-  EcosimWorld* target = ecosim_world_create(&cfg_for(12, 12));
+  const EcosimConfig target_cfg = cfg_for(12, 12);
+  EcosimWorld* target = ecosim_world_create(&target_cfg);
   CHECK_EQ_i32(ECOSIM_OK, ecosim_load_cew(target, buffer.data(), written));
   EcosimStats a{};
   a.struct_size = sizeof(a);

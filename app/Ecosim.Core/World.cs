@@ -141,6 +141,12 @@ public sealed class World : IDisposable
 
     public void SnapshotRestore(int index) => _native.SnapshotRestore(index);
 
+    public byte[] SaveCew() => _native.SaveCew();
+
+    /// <summary>Replaces cells, generation and parameters. A board of a
+    /// different size is refused with both sizes named, never truncated.</summary>
+    public void LoadCew(byte[] data) => _native.LoadCew(data);
+
     /// <summary>
     /// Captures exactly the planes the palette will ask for. The render path and
     /// the capture path used to agree by convention, and getting that wrong

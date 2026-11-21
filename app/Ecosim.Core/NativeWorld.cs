@@ -391,6 +391,37 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    /// <summary>Serialises the whole state (dimensions, generation, params,
+    /// three planes) into the versioned .cew container.</summary>
+    public byte[] SaveCew()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            ErrorTranslation.ThrowIfFailed("cew_size",
+                NativeMethods.ecosim_cew_size(handle, out var needed));
+            var buffer = new byte[needed];
+            ErrorTranslation.ThrowIfFailed("save_cew",
+                NativeMethods.ecosim_save_cew(handle, buffer, needed, out var written));
+            if (written <= 0 || written > buffer.Length)
+            {
+                throw new EcosimException($"引擎报告存档长度 {written}，超出缓冲 {buffer.Length}");
+            }
+            return written == buffer.Length ? buffer : buffer[..written];
+        }
+    }
+
+    public void LoadCew(byte[] data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            ErrorTranslation.ThrowIfFailed("load_cew",
+                NativeMethods.ecosim_load_cew(handle, data, data.Length));
+        }
+    }
+
     public ulong Hash()
     {
         lock (_gate)

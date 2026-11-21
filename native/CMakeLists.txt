@@ -72,6 +72,10 @@ add_executable(ecosim_tests
   tests/test_species.cpp
   tests/test_ecosystem.cpp
   tests/test_params.cpp
+  tests/test_history.cpp
+  tests/test_events.cpp
+  tests/test_snapshots.cpp
+  tests/test_cew.cpp
 )
 target_compile_definitions(ecosim_tests PRIVATE
   ECOSIM_LINK_STATIC=1

@@ -100,7 +100,8 @@ ECOSIM_TEST(history_abi_refuses_bad_indexes_and_sizes) {
   CHECK_EQ_i32(ECOSIM_ERR_INVALID, ecosim_history_get(nullptr, 0, &sample));
   CHECK_EQ_i32(0, ecosim_history_count(nullptr));
   CHECK_EQ_i32(ECOSIM_ERR_RANGE, ecosim_history_get(reinterpret_cast<EcosimWorld*>(&w), 3, &sample));
-  CHECK_EQ_i32(ECOSIM_ERR_INVALID, ecosim_history_get(reinterpret_cast<EcosimWorld*>(&w), -1, &sample));
+  // A negative index is out of range, not a malformed argument.
+  CHECK_EQ_i32(ECOSIM_ERR_RANGE, ecosim_history_get(reinterpret_cast<EcosimWorld*>(&w), -1, &sample));
   CHECK_EQ_i32(ECOSIM_ERR_INVALID, ecosim_history_get(reinterpret_cast<EcosimWorld*>(&w), 0, nullptr));
   EcosimHistorySample tiny{};
   tiny.struct_size = 4;

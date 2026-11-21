@@ -42,6 +42,10 @@
 
         <Button Content="📂 导入 RLE" Command="{Binding OpenRleCommand}" />
         <Button Content="💾 导出 RLE" Command="{Binding SaveRleCommand}" />
+        <Button Content="🗄 打开 .cew" Command="{Binding OpenCewCommand}"
+                ToolTip.Tip="读取完整世界状态：物种、能量、resource、参数与代数" />
+        <Button Content="🗀 保存 .cew" Command="{Binding SaveCewCommand}"
+                ToolTip.Tip="保存完整世界状态（生态模式请用这个，RLE 存不下物种）" />
       </StackPanel>
     </Border>
 

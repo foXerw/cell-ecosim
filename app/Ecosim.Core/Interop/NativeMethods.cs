@@ -127,6 +127,16 @@ internal static class NativeMethods
     public static extern int ecosim_from_rle(IntPtr world, byte[] rle);
 
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_cew_size(IntPtr world, out int needed);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_save_cew(IntPtr world, byte[] buffer, int capacity,
+                                             out int written);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_load_cew(IntPtr world, byte[] buffer, int length);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     public static extern int ecosim_from_rle_at(IntPtr world, byte[] rle, int origin_x,
                                                int origin_y);
 }
