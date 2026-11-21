@@ -319,6 +319,27 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    /// <summary>Drains the engine's event queue (oldest first).</summary>
+    public IReadOnlyList<SimEvent> PollEvents(int max = 64)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            var buffer = EcosimEventDto.CreateBuffer(max);
+            ErrorTranslation.ThrowIfFailed("event_poll",
+                NativeMethods.ecosim_event_poll(handle, buffer, max, out var taken));
+            var list = new List<SimEvent>(taken);
+            for (var i = 0; i < taken; ++i)
+            {
+                list.Add(new SimEvent((long)buffer[i].generation,
+                                      (SimEventKind)buffer[i].kind,
+                                      buffer[i].species,
+                                      buffer[i].count));
+            }
+            return list;
+        }
+    }
+
     public int HistoryLength
     {
         get

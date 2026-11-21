@@ -68,6 +68,14 @@ internal static class NativeMethods
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     public static extern int ecosim_stats(IntPtr world, ref EcosimStatsDto stats);
 
+    // [In, Out] is load-bearing: arrays default to [In] only, so without it
+    // the engine's events land in a temporary copy and the caller reads back
+    // zeroed structs - which decode as "kind = Extinction", the value 0.
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_event_poll(IntPtr world,
+                                               [In, Out] EcosimEventDto[] out_events, int cap,
+                                               out int out_count);
+
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     public static extern int ecosim_param_count();
 

@@ -96,6 +96,8 @@ public sealed class World : IDisposable
 
     public int HistoryLength => _native.HistoryLength;
 
+    public IReadOnlyList<SimEvent> PollEvents(int max = 64) => _native.PollEvents(max);
+
     /// <summary>
     /// Captures exactly the planes the palette will ask for. The render path and
     /// the capture path used to agree by convention, and getting that wrong

@@ -73,7 +73,8 @@ typedef enum EcosimStructId {
   ECOSIM_STRUCT_SEED = 6,
   ECOSIM_STRUCT_PARAMS = 7,
   ECOSIM_STRUCT_PARAM_DESC = 8,
-  ECOSIM_STRUCT_HISTORY_SAMPLE = 9
+  ECOSIM_STRUCT_HISTORY_SAMPLE = 9,
+  ECOSIM_STRUCT_EVENT = 10
 } EcosimStructId;
 
 #pragma pack(push, 4)
@@ -176,6 +177,14 @@ typedef struct EcosimParamDesc {
   const char* label;    /* static UTF-8 */
 } EcosimParamDesc;
 
+typedef struct EcosimEvent {
+  int32_t struct_size;
+  uint64_t generation;
+  int32_t kind;      /* EcosimEventKind */
+  int32_t species;
+  int32_t count;     /* population at that generation */
+} EcosimEvent;
+
 #pragma pack(pop)
 
 typedef struct EcosimWorld EcosimWorld;
@@ -244,6 +253,20 @@ ECOSIM_API int32_t ECOSIM_CALL ecosim_history_count(const EcosimWorld* world);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_history_get(const EcosimWorld* world, int32_t index,
                                                   EcosimHistorySample* out);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_params_set(EcosimWorld* world, const EcosimParams* params);
+
+/* --- events (pulled, never called back) -------------------------------
+ * The engine notices extinction / outbreak / reappearance while it steps;
+ * the managed side drains the queue. Pull rather than callback because a
+ * native thread invoking managed code would need thread affinity the app
+ * does not have (design appendix A.1). */
+typedef enum EcosimEventKind {
+  ECOSIM_EVENT_EXTINCTION = 0,
+  ECOSIM_EVENT_OUTBREAK = 1,
+  ECOSIM_EVENT_APPEARANCE = 2
+} EcosimEventKind;
+
+ECOSIM_API int32_t ECOSIM_CALL ecosim_event_poll(EcosimWorld* world, EcosimEvent* out,
+                                                 int32_t cap, int32_t* out_count);
 
 /* --- analysis and persistence ---------------------------------------- */
 ECOSIM_API int32_t ECOSIM_CALL ecosim_stats(const EcosimWorld* world, EcosimStats* out);

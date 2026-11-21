@@ -182,6 +182,10 @@
           <TextBlock Text="■ 虫" Foreground="#E8C840" FontSize="12" />
           <TextBlock Text="■ 兽" Foreground="#F06058" FontSize="12" />
         </StackPanel>
+
+        <TextBlock Text="事件日志" FontWeight="SemiBold" Margin="0,10,0,0" />
+        <ListBox ItemsSource="{Binding EventLines}" Height="240" FontSize="12"
+                 Background="#14181D" BorderBrush="#2A2F36" />
       </StackPanel>
     </Border>
 

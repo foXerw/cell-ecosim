@@ -7,6 +7,7 @@
 #include "core/history.h"
 #include "core/kernel.h"
 #include "core/parallel.h"
+#include "core/events.h"
 #include "core/params.h"
 #include "ecosim_abi.h"
 
@@ -56,6 +57,8 @@ class World {
 
   const HistoryRing& history() const { return history_; }
 
+  EventQueue& events() { return events_; }
+
   const EcosimParams& params() const { return params_; }
   int32_t set_params(const EcosimParams& p);
 
@@ -83,6 +86,7 @@ class World {
   EcosimParams params_;
   Grid grid_;
   HistoryRing history_;
+  EventQueue events_;
   std::unique_ptr<parallel::Pool> pool_;
   uint64_t generation_ = 0;
 };

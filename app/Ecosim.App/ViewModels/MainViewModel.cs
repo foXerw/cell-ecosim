@@ -330,11 +330,35 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>The population history the chart binds to.</summary>
     public IReadOnlyList<HistorySample>? HistorySamples { get; private set; }
 
+    /// <summary>Newest first, capped: an event log nobody can read is noise.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<string> EventLines { get; } = new();
+
+    private const int MaxEventLines = 100;
+
     public void RefreshHistory()
     {
         HistorySamples = _world.History(600);
         OnPropertyChanged(nameof(HistorySamples));
+
+        var fresh = _world.PollEvents();
+        if (fresh.Count == 0) return;
+        for (var i = fresh.Count - 1; i >= 0; --i)
+        {
+            EventLines.Insert(0, fresh[i].Describe(SpeciesName(fresh[i].Species)));
+        }
+        while (EventLines.Count > MaxEventLines)
+        {
+            EventLines.RemoveAt(EventLines.Count - 1);
+        }
     }
+
+    private static string SpeciesName(int species) => species switch
+    {
+        1 => "藻",
+        2 => "虫",
+        3 => "兽",
+        _ => $"物种 {species}",
+    };
 
     public void Redraw() => PaintSnapshot(_world.CaptureFor(Palette));
 

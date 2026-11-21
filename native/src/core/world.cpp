@@ -48,7 +48,10 @@ bool World::validate(const EcosimConfig& cfg, char* why, int32_t cap) {
 }
 
 World::World(const EcosimConfig& cfg)
-    : cfg_(cfg), rules_(RuleTable::from_config(cfg)), history_(ECOSIM_HISTORY_CAPACITY) {
+    : cfg_(cfg),
+      rules_(RuleTable::from_config(cfg)),
+      history_(ECOSIM_HISTORY_CAPACITY),
+      events_(256) {
   char why[256];
   if (!validate(cfg, why, static_cast<int32_t>(sizeof(why)))) {
     throw std::invalid_argument(why);
@@ -79,6 +82,7 @@ int32_t World::step(int32_t n_steps) {
   const int32_t band_rows = parallel::band_rows_for(grid_.h(), pool_->size());
   const int32_t bands = (grid_.h() + band_rows - 1) / band_rows;
   std::vector<SpeciesCounts> band_counts(static_cast<size_t>(bands));
+  const size_t n = grid_.count();
 
   for (int32_t i = 0; i < n_steps; ++i) {
     if (cfg_.mode == ECOSIM_MODE_ECOSYSTEM) {
@@ -88,6 +92,7 @@ int32_t World::step(int32_t n_steps) {
       SpeciesCounts eco_counts{};
       run_ecosystem(*this, &eco_counts);
       record_generation(eco_counts);
+      events_.observe(generation_ + 1, eco_counts.data(), static_cast<int32_t>(n));
     } else {
       // Bands write disjoint row ranges of nxt and only read cur, so they can
       // run concurrently. The result is proven identical to a single-threaded
@@ -101,6 +106,7 @@ int32_t World::step(int32_t n_steps) {
       SpeciesCounts counts{};
       for (const auto& per_band : band_counts) merge_counts(counts, per_band);
       record_generation(counts);
+      events_.observe(generation_ + 1, counts.data(), static_cast<int32_t>(n));
       grid_.swap_buffers();
     }
     generation_ += 1;

@@ -23,6 +23,7 @@ set(ECOSIM_STATIC_LINK -static -static-libgcc -static-libstdc++)
 # binaries deliberately do not go through ecosim.dll's .a — they compile the
 # same ABI shell over the same objects.
 add_library(ecosim_core STATIC
+  src/core/events.cpp
   src/core/grid.cpp
   src/core/history.cpp
   src/core/kernel.cpp

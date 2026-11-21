@@ -36,6 +36,7 @@ static_assert(sizeof(EcosimSeedConfig) == 20, "EcosimSeedConfig layout drift");
 static_assert(sizeof(EcosimParams) == 140, "EcosimParams layout drift");
 static_assert(sizeof(EcosimParamDesc) == 48, "EcosimParamDesc layout drift");
 static_assert(sizeof(EcosimHistorySample) == 80, "EcosimHistorySample layout drift");
+static_assert(sizeof(EcosimEvent) == 24, "EcosimEvent layout drift");
 
 namespace {
 
@@ -65,6 +66,7 @@ int32_t ecosim_abi_struct_size(int32_t which) {
     case ECOSIM_STRUCT_PARAMS: return static_cast<int32_t>(sizeof(EcosimParams));
     case ECOSIM_STRUCT_PARAM_DESC: return static_cast<int32_t>(sizeof(EcosimParamDesc));
     case ECOSIM_STRUCT_HISTORY_SAMPLE: return static_cast<int32_t>(sizeof(EcosimHistorySample));
+    case ECOSIM_STRUCT_EVENT: return static_cast<int32_t>(sizeof(EcosimEvent));
     default: return 0;
   }
 }
@@ -313,6 +315,27 @@ int32_t ecosim_history_get(const EcosimWorld* world, int32_t index, EcosimHistor
   out->generation = s.generation;
   out->alive_count = s.alive;
   std::memcpy(out->species_count, s.counts.data(), sizeof(out->species_count));
+  return ECOSIM_OK;
+}
+
+int32_t ecosim_event_poll(EcosimWorld* world, EcosimEvent* out, int32_t cap,
+                          int32_t* out_count) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (out_count == nullptr) {
+    ecosim::set_error("out_count 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (out == nullptr || cap < 0) {
+    ecosim::set_error("event_poll 需要缓冲区与非负 cap");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (cap > 0 && out->struct_size < static_cast<int32_t>(sizeof(EcosimEvent))) {
+    ecosim::set_error("EcosimEvent.struct_size 太小");
+    return ECOSIM_ERR_SIZE;
+  }
+  *out_count = w->events().poll(out, cap);
   return ECOSIM_OK;
 }
 
