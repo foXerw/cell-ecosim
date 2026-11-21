@@ -27,6 +27,10 @@
         <Button Content="🎲 随机" Command="{Binding RandomizeCommand}" />
         <Button Content="🧹 清空" Command="{Binding ClearCommand}" />
 
+        <TextBlock Text="模式" VerticalAlignment="Center" Opacity="0.75" />
+        <ComboBox ItemsSource="{Binding ModeNames}" SelectedIndex="{Binding ModeIndex, Mode=TwoWay}"
+                  MinWidth="140" ToolTip.Tip="切换会重建世界，活细胞会被带过去" />
+
         <TextBlock Text="速度(代/秒)" VerticalAlignment="Center" Opacity="0.75" />
         <NumericUpDown Value="{Binding Speed}" Minimum="1" Maximum="100000"
                        Increment="5" FormatString="0" Width="110" />

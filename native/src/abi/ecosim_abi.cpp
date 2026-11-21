@@ -176,6 +176,13 @@ int32_t ecosim_clear(EcosimWorld* world, int32_t fill_species) {
   return w->clear(fill_species);
 }
 
+int32_t ecosim_load_species(EcosimWorld* world, const uint8_t* species, int32_t count) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  return w->load_species(species, count);
+}
+
 int32_t ecosim_randomize(EcosimWorld* world, const EcosimSeedConfig* seed_cfg) {
   ecosim::clear_error();
   ecosim::World* w = as_world(world);

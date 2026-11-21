@@ -25,6 +25,7 @@ struct Options {
   int32_t density = 300;
   uint64_t seed = 1;
   std::string rule = "life";
+  std::string mode = "life";
   std::string birth = "3";
   std::string survive = "23";
   std::string topology = "torus";
@@ -36,7 +37,8 @@ int fail_args(const char* message) {
   std::fprintf(stderr, "参数错误：%s\n", message);
   std::fprintf(stderr,
                "用法：\n"
-               "  ecosim-cli run   --w N --h N --gens N [--rule life|highlife|custom]\n"
+               "  ecosim-cli run   --w N --h N --gens N [--mode life|eco]\n"
+               "                   [--rule life|highlife|custom]\n"
                "                   [--birth 3] [--survive 23] [--topology torus|bounded]\n"
                "                   [--seed N] [--density PERMILLE] [--rle FILE] [--out FILE]\n"
                "                   [--threads N]\n"
@@ -93,7 +95,14 @@ EcosimWorld* create_world(const Options& o, std::string& error) {
   cfg.struct_size = sizeof(EcosimConfig);
   cfg.w = o.w;
   cfg.h = o.h;
-  cfg.mode = ECOSIM_MODE_BIRSURV;
+  if (o.mode == "eco") {
+    cfg.mode = ECOSIM_MODE_ECOSYSTEM;
+  } else if (o.mode == "life") {
+    cfg.mode = ECOSIM_MODE_BIRSURV;
+  } else {
+    error = "未知模式：" + o.mode + "（life|eco）";
+    return nullptr;
+  }
   cfg.topology = o.topology == "bounded" ? ECOSIM_TOPOLOGY_BOUNDED : ECOSIM_TOPOLOGY_TORUS;
   cfg.threads = o.threads;
   cfg.rng_seed = o.seed;
@@ -173,6 +182,7 @@ bool parse_options(int argc, char** argv, int start, Options& o, std::string& er
       if (!v) return false;
       o.seed = std::strtoull(v, nullptr, 10);
     }
+    else if (key == "--mode") { const char* v = value("--mode"); if (!v) return false; o.mode = v; }
     else if (key == "--rule") { const char* v = value("--rule"); if (!v) return false; o.rule = v; }
     else if (key == "--birth") { const char* v = value("--birth"); if (!v) return false; o.birth = v; }
     else if (key == "--survive") { const char* v = value("--survive"); if (!v) return false; o.survive = v; }

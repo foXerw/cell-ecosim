@@ -35,6 +35,12 @@ class World {
   /// Fills the grid with one species (0 = empty) and zeroes age/energy/
   /// resource. The generation counter is deliberately left alone: clearing the
   /// board is not rewinding time.
+  /// Bulk-loads a species plane. Used when switching rule modes, where the
+  /// living cells must move across losslessly (RLE cannot do it: it is
+  /// single-state by design, appendix A.6). Energy resets to each species'
+  /// initial value and age to zero, per appendix A.3.
+  int32_t load_species(const uint8_t* species, int32_t count);
+
   int32_t clear(int32_t fill_species);
 
   /// Stateless per-cell draw (util/rng.h): the same seed and generation give

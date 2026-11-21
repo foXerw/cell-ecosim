@@ -37,7 +37,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public MainViewModel()
     {
-        _world = CreateWorld(DefaultWidth, DefaultHeight, WorldConfig.Default(DefaultWidth, DefaultHeight));
+        _world = CreateFresh(StartupConfig());
         _canvas = new CanvasViewModel(_world);
         Params = new ParamsModel(_world);
         _clock = CreateClock();
@@ -108,6 +108,28 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public Palette Palette { get; } = Palette.Default;
 
     public IReadOnlyList<Pattern> Patterns { get; } = PatternLibrary.All;
+
+    /// <summary>Rule modes are not hot-switchable inside the engine (they mean
+    /// different things to the same cells), so switching rebuilds the world and
+    /// carries the living cells across.</summary>
+    public IReadOnlyList<string> ModeNames { get; } = new[] { "生命游戏（B/S）", "细胞生态" };
+
+    public int ModeIndex
+    {
+        get => _world.Config.Mode == RuleMode.Ecosystem ? 1 : 0;
+        set
+        {
+            var mode = value == 1 ? RuleMode.Ecosystem : RuleMode.BirthSurvive;
+            if (mode == _world.Config.Mode) return;
+            var carry = _world.Capture();
+            Rebuild(_world.Config with { Mode = mode }, carry);
+            Notice = value == 1
+                ? "已切换到生态模式：细胞按各自物种的初始能量重新开始"
+                : "已切换到生命游戏模式";
+            OnPropertyChanged();
+            Redraw();
+        }
+    }
 
     public Pattern? SelectedPattern
     {
@@ -370,14 +392,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Redraw();
     }
 
-    private void Rebuild(WorldConfig config)
+    private void Rebuild(WorldConfig config, SpeciesSnapshot? carry = null)
     {
         var wasRunning = _clock.IsRunning;
         _clock.Stop();
         _clock.Dispose();
         _world.Dispose();
 
-        _world = CreateWorld(config.Width, config.Height, config);
+        _world = carry is null ? CreateFresh(config) : CreateCarried(config, carry);
         _canvas = new CanvasViewModel(_world);
         Params = new ParamsModel(_world);
         OnPropertyChanged(nameof(Canvas));
@@ -396,17 +418,94 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Generation = 0;
     }
 
-    private World CreateWorld(int width, int height, WorldConfig config)
+    /// <summary>
+    /// Startup configuration, with two environment overrides so a demo, a
+    /// screenshot or a bug report can be reproduced exactly:
+    ///   ECOSIM_MODE=eco    starts in ecosystem mode
+    ///   ECOSIM_SEED=&lt;n&gt;    fixes the opening soup's seed
+    /// </summary>
+    private static WorldConfig StartupConfig()
     {
-        var world = new World(config with { Width = width, Height = height });
-        world.Randomize(new SeedConfig
+        var config = WorldConfig.Default(DefaultWidth, DefaultHeight);
+        if (string.Equals(Environment.GetEnvironmentVariable("ECOSIM_MODE"), "eco",
+                          StringComparison.OrdinalIgnoreCase))
         {
-            Species = 1,
-            DensityPermille = 220,
-            Seed = unchecked((ulong)Environment.TickCount64) | 1,
-        });
+            config = config with { Mode = RuleMode.Ecosystem };
+        }
+        var seed = Environment.GetEnvironmentVariable("ECOSIM_SEED");
+        if (ulong.TryParse(seed, out var parsed) && parsed != 0)
+        {
+            config = config with { Seed = parsed };
+        }
+        return config;
+    }
+
+    private static World CreateFresh(WorldConfig config)
+    {
+        var world = new World(config);
+        if (config.Mode == RuleMode.Ecosystem)
+        {
+            SeedFoodWeb(world, config.Seed);
+        }
+        else
+        {
+            world.Randomize(new SeedConfig
+            {
+                Species = 1,
+                DensityPermille = 220,
+                Seed = config.Seed != 0 ? config.Seed
+                                        : unchecked((ulong)Environment.TickCount64) | 1,
+            });
+        }
         return world;
     }
+
+    /// <summary>
+    /// A three-species opening. randomize() fills one species at a time, so the
+    /// mix is assembled here and handed to the bulk loader, which reseeds each
+    /// cell's energy from the species table.
+    /// </summary>
+    private static void SeedFoodWeb(World world, ulong seed)
+    {
+        var rng = new Random(unchecked((int)(seed != 0 ? seed
+                                                       : (ulong)Environment.TickCount64)));
+        var plane = new byte[world.Width * world.Height];
+        for (var i = 0; i < plane.Length; ++i)
+        {
+            var roll = rng.Next(1000);
+            plane[i] = roll switch
+            {
+                < 250 => 1,   // algae
+                < 290 => 2,   // grazers
+                < 296 => 3,   // hunters
+                _ => 0,
+            };
+        }
+        world.LoadSpecies(plane);
+    }
+
+    /// <summary>Rebuilds with the same living cells. RLE cannot do this job
+    /// (it is single-state), so the species plane travels through the bulk
+    /// loader instead - see design appendix A.6.</summary>
+    private static World CreateCarried(WorldConfig config, SpeciesSnapshot carry)
+    {
+        var world = new World(config);
+        if (carry.Width == config.Width && carry.Height == config.Height)
+        {
+            world.LoadSpecies(carry.Species);
+        }
+        else
+        {
+            world.FromRle(EncodeCarry(carry));
+        }
+        return world;
+    }
+
+    private static string EncodeCarry(SpeciesSnapshot carry)
+        => RleCodec.Encode(carry.Width, carry.Height,
+                            Enumerable.Range(0, carry.Species.Length)
+                                      .Where(i => carry.Species[i] != 0)
+                                      .Select(i => (X: i % carry.Width, Y: i / carry.Width)));
 
     private SimClock CreateClock()
     {

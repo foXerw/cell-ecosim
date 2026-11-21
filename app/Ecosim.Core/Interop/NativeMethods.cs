@@ -55,6 +55,9 @@ internal static class NativeMethods
     public static extern int ecosim_clear(IntPtr world, int fill_species);
 
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_load_species(IntPtr world, byte[] species, int count);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     public static extern int ecosim_randomize(IntPtr world, ref EcosimSeedConfigDto seed_cfg);
 
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]

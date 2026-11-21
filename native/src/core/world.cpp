@@ -198,6 +198,29 @@ int32_t World::render_frame(uint8_t* bgra, int32_t row_pitch, const EcosimPalett
                                  row_pitch, palette);
 }
 
+int32_t World::load_species(const uint8_t* species, int32_t count) {
+  if (species == nullptr || count <= 0) {
+    set_error("load_species 需要非空平面与正数长度");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (static_cast<size_t>(count) != grid_.count()) {
+    char msg[128];
+    std::snprintf(msg, sizeof(msg), "平面长度 %d 与网格 %dx%d 不符", count, grid_.w(),
+                  grid_.h());
+    set_error(msg);
+    return ECOSIM_ERR_RANGE;
+  }
+  Planes& cur = grid_.cur();
+  for (size_t i = 0; i < cur.species.size(); ++i) {
+    const uint8_t s = species[i] % ECOSIM_MAX_SPECIES;
+    cur.species[i] = s;
+    cur.age[i] = 0;
+    cur.energy[i] = s ? species_of(s).initial_energy : 0;
+  }
+  grid_.copy_cur_to_nxt();
+  return ECOSIM_OK;
+}
+
 int32_t World::clear(int32_t fill_species) {
   if (fill_species < 0 || fill_species >= ECOSIM_MAX_SPECIES) {
     char msg[96];

@@ -72,6 +72,10 @@ public sealed class World : IDisposable
 
     public void Clear(int fillSpecies = 0) => _native.Clear(fillSpecies);
 
+    /// <summary>Replaces the species plane wholesale. Length must match the
+    /// grid; living cells get their species' initial energy.</summary>
+    public void LoadSpecies(byte[] species) => _native.LoadSpecies(species);
+
     public void Randomize(in SeedConfig config) => _native.Randomize(config);
 
     /// <summary>FNV-1a over the species plane; the tests use it to prove two

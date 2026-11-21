@@ -48,7 +48,7 @@ public record struct WorldConfig
         Threads = 0,
         BirthMask = new byte[] { 0, 0, 0, 1, 0, 0, 0, 0, 0 },
         SurviveMask = new byte[] { 0, 0, 1, 1, 0, 0, 0, 0, 0 },
-        Seed = 1,
+        Seed = 0,   // 0 = time-based; set ECOSIM_SEED for a reproducible opening
     };
 
     /// <summary>HighLife: B36/S23, adds replicators.</summary>
@@ -61,7 +61,7 @@ public record struct WorldConfig
         Threads = 0,
         BirthMask = new byte[] { 0, 0, 0, 1, 0, 0, 1, 0, 0 },
         SurviveMask = new byte[] { 0, 0, 1, 1, 0, 0, 0, 0, 0 },
-        Seed = 1,
+        Seed = 0,
     };
 }
 

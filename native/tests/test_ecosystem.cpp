@@ -11,6 +11,7 @@
 #include "core/world.h"
 #include "ecosim_abi.h"
 #include "rules/pipeline.h"
+#include "util/rng.h"
 
 namespace {
 
@@ -23,6 +24,15 @@ EcosimConfig eco_config(int32_t w, int32_t h, int32_t threads = 1) {
   cfg.topology = ECOSIM_TOPOLOGY_BOUNDED;
   cfg.threads = threads;
   cfg.rng_seed = 1234;
+  return cfg;
+}
+
+/// Food webs are defined on an unbounded board: with a bounded one, grazers
+/// walk off the edge and the web collapses, which is a topology artefact and
+/// not what these scenarios are about.
+EcosimConfig eco_torus(int32_t n) {
+  EcosimConfig cfg = eco_config(n, n);
+  cfg.topology = ECOSIM_TOPOLOGY_TORUS;
   return cfg;
 }
 
@@ -221,4 +231,145 @@ ECOSIM_TEST(sense_clears_between_calls_and_needs_no_preallocation) {
   CHECK_EQ_i32(first, sf.count[1][i]);
   CHECK_EQ_i32(4, sf.w);
   CHECK_EQ_i32(4, sf.h);
+}
+
+namespace {
+
+/// A mixed board seeded by the same stateless draw the engine uses, so the
+/// scenario is reproducible without depending on randomize's single-species
+/// semantics.
+void seed_mixed(ecosim::World& w, uint64_t seed) {
+  auto& planes = w.grid().cur();
+  for (size_t i = 0; i < planes.species.size(); ++i) {
+    const uint64_t r = ecosim::rng::draw(seed, 0, i);
+    const uint32_t permille = r % 1000u;
+    uint8_t s = 0;
+    if (permille < 250) s = 1;
+    else if (permille < 290) s = 2;
+    else if (permille < 296) s = 3;
+    planes.species[i] = s;
+    planes.energy[i] = s ? ecosim::species_of(s).initial_energy : 0;
+    planes.age[i] = 0;
+    planes.resource[i] = static_cast<uint8_t>((r >> 20) % 60u);
+  }
+  w.grid().copy_cur_to_nxt();
+}
+
+std::vector<EcosimStats> sample_series(ecosim::World& w, int32_t gens, int32_t every) {
+  std::vector<EcosimStats> series;
+  for (int32_t g = 0; g <= gens; g += every) {
+    if (g > 0) CHECK_EQ_i32(ECOSIM_OK, w.step(every));
+    EcosimStats st{};
+    st.struct_size = sizeof(st);
+    CHECK_EQ_i32(ECOSIM_OK, w.stats(st));
+    series.push_back(st);
+  }
+  return series;
+}
+
+/// Indices of local maxima with the given half-window.
+std::vector<size_t> peaks(const std::vector<EcosimStats>& series, int32_t species,
+                          int32_t window) {
+  std::vector<size_t> out;
+  for (size_t i = window; i + window < series.size(); ++i) {
+    const int32_t v = series[i].species_count[species];
+    if (v <= 0) continue;
+    bool is_peak = true;
+    for (int32_t k = -window; k <= window && is_peak; ++k) {
+      if (k == 0) continue;
+      if (series[i + k].species_count[species] >= v) is_peak = false;
+    }
+    if (is_peak) out.push_back(i);
+  }
+  return out;
+}
+
+}  // namespace
+
+ECOSIM_TEST(ecosystem_sustains_three_species_for_2000_generations) {
+  // The M2 exit criterion: this is not a Life board with extra fields, the
+  // food web has to keep running.
+  ecosim::World w(eco_torus(128));
+  seed_mixed(w, 42);
+  const auto series = sample_series(w, 2000, 20);
+
+  const auto& last = series.back();
+  CHECK_TRUE(last.species_count[1] > 0);
+  CHECK_TRUE(last.species_count[2] > 0);
+  CHECK_TRUE(last.species_count[3] > 0);
+
+  int32_t zero_grazers = 0;
+  int32_t zero_hunters = 0;
+  for (const auto& st : series) {
+    zero_grazers += st.species_count[2] == 0;
+    zero_hunters += st.species_count[3] == 0;
+  }
+  CHECK_EQ_i32(0, zero_grazers);
+  CHECK_EQ_i32(0, zero_hunters);
+}
+
+ECOSIM_TEST(predator_peaks_follow_prey_peaks) {
+  // Lotka-Volterra signature: grazers peak, hunters peak some time later, and
+  // this repeats. A board that merely survives is not enough.
+  ecosim::World w(eco_torus(128));
+  seed_mixed(w, 42);
+  const auto series = sample_series(w, 1200, 20);
+
+  const auto grazer_peaks = peaks(series, 2, 2);
+  const auto hunter_peaks = peaks(series, 3, 2);
+  CHECK_TRUE(grazer_peaks.size() >= 2);
+  CHECK_TRUE(hunter_peaks.size() >= 1);
+
+  int32_t lagged = 0;
+  for (size_t hp : hunter_peaks) {
+    for (size_t gp : grazer_peaks) {
+      const int32_t lag_gens = static_cast<int32_t>((hp - gp) * 20);
+      if (lag_gens >= 0 && lag_gens <= 120) ++lagged;
+    }
+  }
+  CHECK_TRUE(lagged >= 1);
+}
+
+ECOSIM_TEST(ecosystem_survives_across_seeds) {
+  // One lucky seed would be a coincidence, not a model.
+  for (const uint64_t seed : {7ull, 101ull, 999ull}) {
+    ecosim::World w(eco_torus(96));
+    seed_mixed(w, seed);
+    w.step(1200);
+    EcosimStats st{};
+    st.struct_size = sizeof(st);
+    CHECK_EQ_i32(ECOSIM_OK, w.stats(st));
+    CHECK_TRUE(st.species_count[2] > 0);
+    CHECK_TRUE(st.species_count[3] > 0);
+  }
+}
+
+ECOSIM_TEST(load_species_moves_cells_losslessly_and_reseeds_energy) {
+  ecosim::World w(eco_torus(4));
+  EcosimSeedConfig seed{};
+  seed.struct_size = sizeof(seed);
+  seed.species = 2;
+  seed.density_permille = 400;
+  seed.seed = 9;
+  CHECK_EQ_i32(ECOSIM_OK, w.randomize(seed));
+
+  const uint8_t plane[16] = {
+      1, 1, 0, 0,   //
+      1, 2, 2, 0,   //
+      0, 2, 3, 3,   //
+      0, 0, 3, 0,   //
+  };
+  CHECK_EQ_i32(ECOSIM_OK, w.load_species(plane, 16));
+
+  const auto& cur = w.grid().cur();
+  for (size_t i = 0; i < 16; ++i) {
+    CHECK_EQ_i32(plane[i], cur.species[i]);
+    CHECK_EQ_i32(0, cur.age[i]);
+    const uint16_t want = plane[i] ? ecosim::species_of(plane[i]).initial_energy : 0;
+    CHECK_EQ_i32(want, cur.energy[i]);
+  }
+
+  CHECK_EQ_i32(ECOSIM_ERR_RANGE, w.load_species(plane, 15));
+  CHECK_EQ_i32(ECOSIM_ERR_INVALID, w.load_species(nullptr, 16));
+  CHECK_TRUE(std::strlen(ecosim_last_error()) > 0);
 }

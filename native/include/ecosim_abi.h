@@ -191,6 +191,10 @@ ECOSIM_API int32_t ECOSIM_CALL ecosim_render_species(const uint8_t* species, int
 ECOSIM_API int32_t ECOSIM_CALL ecosim_paint(EcosimWorld* world, const EcosimPaintOp* ops,
                                             int32_t count);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_clear(EcosimWorld* world, int32_t fill_species);
+/* Bulk-loads a species plane (row-major, w*h bytes). Living cells get their
+ * species' initial energy and age 0; used for lossless rule-mode switches. */
+ECOSIM_API int32_t ECOSIM_CALL ecosim_load_species(EcosimWorld* world, const uint8_t* species,
+                                                   int32_t count);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_randomize(EcosimWorld* world,
                                                 const EcosimSeedConfig* seed_cfg);
 

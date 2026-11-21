@@ -122,6 +122,19 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    /// <summary>Bulk-loads a species plane, e.g. when carrying cells across a
+    /// rule-mode switch. Energy and age are reseeded by the engine.</summary>
+    public void LoadSpecies(byte[] species)
+    {
+        ArgumentNullException.ThrowIfNull(species);
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            ErrorTranslation.ThrowIfFailed("load_species",
+                NativeMethods.ecosim_load_species(handle, species, species.Length));
+        }
+    }
+
     public void Clear(int fillSpecies)
     {
         lock (_gate)
