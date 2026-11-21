@@ -90,7 +90,7 @@ void SnapshotRing::clear() {
   head_ = 0;
   size_ = 0;
   captured_ = 0;
-  stride_ = 1;
+  stride_ = kInitialStride;
   frames_at_stride_ = 0;
   next_due_ = 0;
 }
@@ -132,18 +132,15 @@ int32_t SnapshotRing::capture(uint64_t generation, const Grid& grid) {
 }
 
 void SnapshotRing::maybe_capture(uint64_t generation, const Grid& grid) {
-  if (captured_ < kDenseFrames) {
-    capture(generation, grid);
-    next_due_ = generation + 1;
-    return;
-  }
-  if (generation < next_due_) return;
+  const uint64_t cells = grid.count();
+  const uint64_t scale = std::max<uint64_t>(1, cells / kStrideCellBudget);
+  const uint64_t effective_stride = static_cast<uint64_t>(stride_) * scale;
+  if (effective_stride == 0 || generation % effective_stride != 0) return;
 
   capture(generation, grid);
-  next_due_ = generation + static_cast<uint64_t>(stride_);
   if (++frames_at_stride_ >= static_cast<int32_t>(slots_.size()) / 2) {
     frames_at_stride_ = 0;
-    stride_ = std::min(stride_ * 2, 1024);
+    stride_ = std::min(stride_ * 2, 4096);
   }
 }
 

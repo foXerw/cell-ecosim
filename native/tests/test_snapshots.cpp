@@ -86,10 +86,15 @@ ECOSIM_TEST(the_ring_widens_its_stride_instead_of_growing_unbounded) {
   ecosim::World w(eco8());
   CHECK_EQ_i32(ECOSIM_OK, w.randomize(soup(1, 300, 3)));
   w.step(40);
-  CHECK_EQ_i32(40, w.snapshots().count());  // still inside the dense window
+  // Sampled, not per generation: every 8th generation, because capturing costs
+  // more than a generation of simulation at these board sizes.
+  CHECK_EQ_i32(5, w.snapshots().count());
+  CHECK_EQ_i64(8, static_cast<int64_t>(w.snapshots().generation_at(0)));
+  CHECK_EQ_i64(40, static_cast<int64_t>(w.snapshots().generation_at(4)));
 
   w.step(300);
   CHECK_EQ_i32(ecosim::SnapshotRing::kDefaultSlots, w.snapshots().count());
+  CHECK_TRUE(w.snapshots().generation_at(63) - w.snapshots().generation_at(0) > 300);
 
   uint64_t previous = 0;
   for (int32_t i = 0; i < w.snapshots().count(); ++i) {

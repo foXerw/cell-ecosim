@@ -21,7 +21,10 @@ public class TimelineTests
 
         world.Step(12);
         timeline.Refresh();
-        Assert.Equal(12, timeline.Count);
+        // Sampled every 8 generations, not one per generation: capturing costs
+        // more than a generation of simulation at large boards.
+        Assert.Equal(1, timeline.Count);
+        Assert.Equal(8, world.SnapshotGeneration(0));
         Assert.Equal(world.Generation, timeline.CurrentGeneration);  // still live
     }
 
@@ -31,18 +34,19 @@ public class TimelineTests
         using var world = Ecosystem();
         world.Step(20);
         var timeline = new TimelineModel(world);
+        Assert.Equal(2, timeline.Count);
 
-        Assert.True(timeline.Restore(4));
+        Assert.True(timeline.Restore(0));
         Assert.True(timeline.IsReviewing);
-        Assert.Equal(5, world.Generation);
-        Assert.Equal(world.Generation, timeline.CurrentGeneration);
+        Assert.Equal(8, world.Generation);
+        Assert.Equal(8, timeline.CurrentGeneration);
     }
 
     [Fact]
     public void Out_of_range_indices_are_refused_not_thrown()
     {
         using var world = Ecosystem();
-        world.Step(6);
+        world.Step(10);
         var timeline = new TimelineModel(world);
 
         Assert.False(timeline.Restore(-1));
@@ -54,12 +58,13 @@ public class TimelineTests
     }
 
     [Fact]
-    public void Exiting_review_returns_to_live()
+    public void Exiting_review_returns_to_live_and_stepping_continues()
     {
         using var world = Ecosystem();
-        world.Step(8);
+        world.Step(9);
+        world.SnapshotCapture();          // pin generation 9 explicitly
         var timeline = new TimelineModel(world);
-        timeline.Restore(2);
+        timeline.Restore(timeline.Count - 1);
 
         timeline.ExitReview();
         Assert.False(timeline.IsReviewing);
@@ -68,7 +73,7 @@ public class TimelineTests
         // Reviewing does not freeze the board: stepping on from a restored
         // snapshot continues the simulation from that generation.
         world.Step(3);
-        Assert.Equal(6, world.Generation);
+        Assert.Equal(12, world.Generation);
     }
 
     [Fact]
@@ -77,24 +82,25 @@ public class TimelineTests
         // The property the scrubber depends on: because the engine rewinds the
         // generation with the board and the rng is stateless over
         // (seed, generation, cell), replaying is exact rather than approximate.
+        // Generation 8 is sampled by the ring's stride, so both worlds can
+        // reach the same frame without pinning by hand.
         using var neverLeft = Ecosystem();
-        neverLeft.Step(10);
-        neverLeft.SnapshotCapture();
-        neverLeft.Step(15);
+        neverLeft.Step(8);
+        var atEight = neverLeft.Hash();
+        neverLeft.Step(12);
         var expected = neverLeft.Hash();
 
         using var rewound = Ecosystem();
-        rewound.Step(25);
+        rewound.Step(30);
         var timeline = new TimelineModel(rewound);
-
-        // The dense window keeps one frame per generation, so generation 10 is
-        // there; find it rather than assuming its index.
         var index = Enumerable.Range(0, timeline.Count)
-                              .First(i => rewound.SnapshotGeneration(i) == 10);
-        Assert.True(timeline.Restore(index));
-        Assert.Equal(10, rewound.Generation);
+                              .First(i => rewound.SnapshotGeneration(i) == 8);
 
-        rewound.Step(15);
+        Assert.True(timeline.Restore(index));
+        Assert.Equal(8, rewound.Generation);
+        Assert.Equal(atEight, rewound.Hash());
+
+        rewound.Step(12);
         Assert.Equal(expected, rewound.Hash());
     }
 

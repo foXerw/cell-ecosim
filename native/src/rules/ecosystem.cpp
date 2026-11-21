@@ -431,7 +431,9 @@ void run_ecosystem(World& w, SpeciesCounts* counts_out) {
 
   // 6. regrow per cell, taking the census as it goes.
   pool.run_bands(H, band_rows, [&](int32_t y0, int32_t y1) {
-    regrow_rows(c, y0, y1, &(*c.band_counts)[static_cast<size_t>(y0 / band_rows)]);
+    SpeciesCounts local{};
+    regrow_rows(c, y0, y1, &local);
+    (*c.band_counts)[static_cast<size_t>(y0 / band_rows)] = local;
   });
 
   if (counts_out != nullptr) {
