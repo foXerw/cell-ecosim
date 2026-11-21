@@ -48,13 +48,19 @@ public class StatsTests
     }
 
     [Fact]
-    public void Out_of_range_paint_throws_with_the_engine_message()
+    public void Paint_running_off_the_edge_clips_and_reports_nothing_wrong()
     {
+        // Behaviour change with the brush fix: a stroke that leaves the board is
+        // clipped by the facade, because that is what dragging means. The engine
+        // still rejects nonsense, which the second half checks.
         using var world = new World(WorldConfig.Default(8, 8));
+        world.Paint(new[] { new PaintOp(6, 6, 12, 7, 1) });
+        Assert.Equal(2, world.Stats().Alive);   // columns 6 and 7 of row 6
+
         var ex = Assert.Throws<EcosimException>(
-            () => world.Paint(new[] { new PaintOp(6, 6, 12, 7, 1) }));
-        Assert.Equal(AbiConstants.ErrRange, ex.Code);
-        Assert.Contains("超出网格", ex.Message);
+            () => world.Paint(new[] { new PaintOp(0, 0, 1, 1, 999) }));
+        Assert.Equal(AbiConstants.ErrInvalid, ex.Code);
+        Assert.Contains("species", ex.Message);
     }
 
     [Fact]

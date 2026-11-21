@@ -3,7 +3,6 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Ecosim.App.ViewModels;
 using Ecosim.Core;
@@ -39,35 +38,24 @@ public partial class MainWindow : Window
         CanvasHost.SizeChanged += (_, e) =>
         {
             vm.Canvas.SetCanvasSize(e.NewSize);
-            SyncTransform();
             vm.Redraw();
         };
         vm.PropertyChanged += OnViewModelChanged;
+
         // Mutating the WriteableBitmap's pixels does not mark the Image visual
         // dirty in Avalonia 12's composition renderer; without this the canvas
         // shows a stale texture until something else invalidates the window.
         vm.FramePainted += (_, _) => CanvasImage.InvalidateVisual();
         AttachCanvas(vm);
 
-        CanvasImage.Source = vm.CanvasBitmap;
-        SyncTransform();
         vm.Redraw();
     }
 
     /// <summary>The canvas view model is replaced when the world is rebuilt, so
-    /// the transform subscription has to move with it.</summary>
+    /// the subscription has to move with it.</summary>
     private void AttachCanvas(MainViewModel vm)
     {
         vm.Canvas.PropertyChanged += OnCanvasChanged;
-    }
-
-    private void OnPresetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (_vm is null || sender is not Button { Tag: string tag }) return;
-        if (!int.TryParse(tag, out var size)) return;
-        _vm.NewWidth = size;
-        _vm.NewHeight = size;
-        if (_vm.NewWorldCommand.CanExecute(null)) _vm.NewWorldCommand.Execute(null);
     }
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
@@ -81,27 +69,16 @@ public partial class MainWindow : Window
         {
             AttachCanvas(_vm);
             _vm.Canvas.SetCanvasSize(CanvasHost.Bounds.Size);
-            SyncTransform();
             _vm.Redraw();
         }
     }
 
     private void OnCanvasChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(CanvasViewModel.Viewport)) SyncTransform();
-        if (e.PropertyName == nameof(CanvasViewModel.HoveredCell) ||
-            e.PropertyName == nameof(CanvasViewModel.Viewport))
+        if (e.PropertyName is nameof(CanvasViewModel.HoveredCell) or nameof(CanvasViewModel.Viewport))
         {
             UpdateHoverText();
         }
-    }
-
-    private void SyncTransform()
-    {
-        if (_vm is null) return;
-        var vp = _vm.Canvas.Viewport;
-        CanvasImage.RenderTransform =
-            new MatrixTransform(new Matrix(vp.CellSize, 0, 0, vp.CellSize, vp.OffsetX, vp.OffsetY));
     }
 
     private void UpdateHoverText()
@@ -117,7 +94,7 @@ public partial class MainWindow : Window
         var point = e.GetPosition(CanvasHost);
         var props = e.GetCurrentPoint(CanvasHost).Properties;
         var pan = props.IsMiddleButtonPressed || props.IsRightButtonPressed;
-        Apply(_vm.Canvas.PointerPressed(point, pan));
+        Guard(() => Apply(_vm.Canvas.PointerPressed(point, pan)));
         e.Pointer.Capture(CanvasHost);
         e.Handled = true;
     }
@@ -129,8 +106,11 @@ public partial class MainWindow : Window
         var props = e.GetCurrentPoint(CanvasHost).Properties;
         var pressed = props.IsLeftButtonPressed || props.IsMiddleButtonPressed ||
                       props.IsRightButtonPressed;
-        Apply(_vm.Canvas.PointerMoved(point, pressed));
-        UpdateHoverText();
+        Guard(() =>
+        {
+            Apply(_vm.Canvas.PointerMoved(point, pressed));
+            UpdateHoverText();
+        });
     }
 
     private void OnCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
@@ -142,9 +122,32 @@ public partial class MainWindow : Window
     {
         if (_vm is null) return;
         _vm.ZoomAt(e.GetPosition(CanvasHost), e.Delta.Y > 0 ? 1.25 : 1 / 1.25);
-        SyncTransform();
         UpdateHoverText();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// A pointer gesture must never take the process down. Engine errors become
+    /// a status-line notice instead - fast strokes routinely run off the edge of
+    /// the grid, and that is a normal thing for a person to do.
+    /// </summary>
+    private void Guard(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (EcosimException ex)
+        {
+            if (_vm is not null) _vm.Notice = $"操作未生效：{ex.Message}";
+        }
+    }
+
+    private void Apply(System.Collections.Generic.IReadOnlyList<PaintOp>? ops)
+    {
+        if (_vm is null || ops is null || ops.Count == 0) return;
+        _vm.World.Paint(ops);
+        _vm.Redraw();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -207,10 +210,12 @@ public partial class MainWindow : Window
         if (command.CanExecute(null)) command.Execute(null);
     }
 
-    private void Apply(System.Collections.Generic.IReadOnlyList<PaintOp>? ops)
+    private void OnPresetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (_vm is null || ops is null || ops.Count == 0) return;
-        _vm.World.Paint(ops);
-        _vm.Redraw();
+        if (_vm is null || sender is not Button { Tag: string tag }) return;
+        if (!int.TryParse(tag, out var size)) return;
+        _vm.NewWidth = size;
+        _vm.NewHeight = size;
+        if (_vm.NewWorldCommand.CanExecute(null)) _vm.NewWorldCommand.Execute(null);
     }
 }

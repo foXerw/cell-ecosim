@@ -1,5 +1,9 @@
 namespace Ecosim.Core;
 
+/// <summary>A rectangle in screen units, kept here so the mapping maths stays
+/// free of Avalonia types.</summary>
+public readonly record struct ScreenRect(double X, double Y, double Width, double Height);
+
 /// <summary>
 /// Pure screen↔grid mapping. Deliberately free of Avalonia types so it can be
 /// unit-tested in plain xUnit: the app's bitmap is one pixel per cell, and this
@@ -51,6 +55,15 @@ public readonly record struct Viewport
                 Math.Clamp(right + 1, 0, gridWidth),
                 Math.Clamp(bottom + 1, 0, gridHeight));
     }
+
+    /// <summary>
+    /// Where the grid goes on screen, in the same units ScreenToCell consumes.
+    /// The view lays the bitmap out from this rect, so "where a cell is drawn"
+    /// and "which cell the cursor is over" cannot drift apart - a test asserts
+    /// the two are exact inverses.
+    /// </summary>
+    public ScreenRect DestinationRect(int gridWidth, int gridHeight)
+        => new(OffsetX, OffsetY, gridWidth * CellSize, gridHeight * CellSize);
 
     /// <summary>Zoom keeping the cell under the cursor under the cursor.</summary>
     public Viewport ZoomAt(double screenX, double screenY, double factor)

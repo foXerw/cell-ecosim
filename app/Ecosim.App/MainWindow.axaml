@@ -127,9 +127,16 @@
           PointerMoved="OnCanvasPointerMoved"
           PointerReleased="OnCanvasPointerReleased"
           PointerWheelChanged="OnCanvasWheel">
-      <Image x:Name="CanvasImage" Stretch="None" HorizontalAlignment="Left"
-             VerticalAlignment="Top"
-             RenderOptions.BitmapInterpolationMode="None" />
+      <!-- 位置与尺寸来自 Viewport.DestinationRect：绘制落点和点击反算用同一套数，
+           不存在 Image 居中或 RenderTransform 原点带来的隐性偏移。 -->
+      <Canvas>
+        <Image x:Name="CanvasImage" Stretch="Fill"
+               Canvas.Left="{Binding Canvas.CanvasLeft}"
+               Canvas.Top="{Binding Canvas.CanvasTop}"
+               Width="{Binding Canvas.CanvasWidth}"
+               Height="{Binding Canvas.CanvasHeight}"
+               RenderOptions.BitmapInterpolationMode="None" />
+      </Canvas>
     </Grid>
 
   </DockPanel>

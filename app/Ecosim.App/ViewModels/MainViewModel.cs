@@ -195,11 +195,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set => Set(ref _newHeight, Math.Clamp(value, 1, AbiConstants.MaxDim));
     }
 
-    /// <summary>Transient message for the status bar (imports, rebuilds, ...).</summary>
+    /// <summary>Transient message for the status bar (imports, rebuilds, gestures).
+    /// The view writes it too, so the setter is internal rather than private.</summary>
     public string? Notice
     {
         get => _notice;
-        private set => Set(ref _notice, value);
+        internal set => Set(ref _notice, value);
     }
 
     public GridTopology Topology

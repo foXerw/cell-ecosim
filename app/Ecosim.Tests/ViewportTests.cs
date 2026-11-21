@@ -80,6 +80,49 @@ public class ViewportTests
     }
 
     [Fact]
+    public void Destination_rect_and_screen_to_cell_are_exact_inverses()
+    {
+        // The view lays the bitmap out from DestinationRect; a click is mapped
+        // with ScreenToCell. If those two ever disagree, the brush lands away
+        // from the cursor - which is exactly the bug this test prevents.
+        foreach (var (grid, canvas, factor) in new[]
+                 {
+                     (512, (800.0, 600.0), 1.0),
+                     (512, (800.0, 600.0), 1.5),
+                     (512, (1100.0, 900.0), 0.25),
+                     (64, (900.0, 700.0), 3.0),
+                 })
+        {
+            var vp = Viewport.Fit(grid, grid, canvas.Item1, canvas.Item2);
+            for (var i = 0; i < 40; ++i) vp = vp.ZoomAt(canvas.Item1 * 0.4, canvas.Item2 * 0.6, factor);
+
+            var dest = vp.DestinationRect(grid, grid);
+            Assert.Equal(vp.OffsetX, dest.X);
+            Assert.Equal(vp.OffsetY, dest.Y);
+            Assert.Equal(grid * vp.CellSize, dest.Width, 6);
+
+            // The centre of each corner cell must map back to that cell.
+            foreach (var (cx, cy) in new[] { (0, 0), (grid / 2, grid / 2), (grid - 1, grid - 1) })
+            {
+                double screenX = dest.X + (cx + 0.5) * vp.CellSize;
+                double screenY = dest.Y + (cy + 0.5) * vp.CellSize;
+                Assert.Equal((cx, cy), vp.ScreenToCell(screenX, screenY));
+            }
+        }
+    }
+
+    [Fact]
+    public void Destination_rect_scales_the_whole_grid_into_the_canvas()
+    {
+        var vp = Viewport.Fit(512, 512, 1024, 512);
+        var dest = vp.DestinationRect(512, 512);
+        Assert.Equal(512, dest.Width, 6);
+        Assert.Equal(512, dest.Height, 6);
+        Assert.Equal(256, dest.X, 6);   // centred horizontally in the canvas
+        Assert.Equal(0, dest.Y, 6);
+    }
+
+    [Fact]
     public void Panning_moves_the_offset_and_nothing_else()
     {
         var vp = new Viewport { CellSize = 3, OffsetX = 5, OffsetY = 7 };

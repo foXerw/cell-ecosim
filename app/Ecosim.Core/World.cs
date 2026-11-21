@@ -31,8 +31,40 @@ public sealed class World : IDisposable
 
     public void Step(int nSteps) => _native.Step(nSteps);
 
-    /// <summary>Applies a whole brush stroke in one call across the border.</summary>
-    public void Paint(IReadOnlyList<PaintOp> ops) => _native.Paint(ops);
+    /// <summary>
+    /// Applies a whole brush stroke in one call across the border.
+    ///
+    /// Ops are clipped to the grid first: dragging fast routinely sends the
+    /// cursor off the edge, and "paint what is on the board, ignore the rest"
+    /// is the behaviour a person expects from a brush. The engine still refuses
+    /// genuinely bogus rectangles (inverted, unknown species), which is why the
+    /// clipping happens here rather than in the ABI.
+    /// </summary>
+    public void Paint(IReadOnlyList<PaintOp> ops)
+    {
+        ArgumentNullException.ThrowIfNull(ops);
+        if (ops.Count == 0) return;
+
+        var clipped = ClipToGrid(ops);
+        if (clipped.Count > 0) _native.Paint(clipped);
+    }
+
+    private List<PaintOp>? _clipBuffer = new();
+
+    private IReadOnlyList<PaintOp> ClipToGrid(IReadOnlyList<PaintOp> ops)
+    {
+        var buffer = _clipBuffer ??= new List<PaintOp>(ops.Count);
+        buffer.Clear();
+        foreach (var op in ops)
+        {
+            var x0 = Math.Max(op.X0, 0);
+            var y0 = Math.Max(op.Y0, 0);
+            var x1 = Math.Min(op.X1, Width);
+            var y1 = Math.Min(op.Y1, Height);
+            if (x0 < x1 && y0 < y1) buffer.Add(new PaintOp(x0, y0, x1, y1, op.Species));
+        }
+        return buffer;
+    }
 
     public SimStats Stats() => _native.Stats();
 

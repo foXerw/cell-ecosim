@@ -77,6 +77,21 @@ Avalonia 侧位图是**一格一像素**，缩放平移靠 `RenderTransform` 的
 触发 `FramePainted`，视图订阅后调用 `CanvasImage.InvalidateVisual()`。
 验证方式很直接：相隔 5 秒截同一块画布区域做哈希，修前完全相同，修后不同。
 
+## 坐标映射（笔刷为什么必须落在光标上）
+
+绘制落点与点击反算**共用同一份数学**：`Viewport.DestinationRect(gridW, gridH)` 给出网格在屏幕上
+的矩形，视图把位图用 `Canvas.Left/Top + Width/Height + Stretch=Fill` 摆到这个矩形上，
+`Viewport.ScreenToCell` 是它的反函数。`ViewportTests` 里有一条测试断言两者互为精确逆
+（不同网格/画布/缩放下取三角格中心往返）。
+
+曾经的坑：`Image` 用 `Stretch="None"`（Avalonia 语义 = 不缩放**且居中**）配合 `RenderTransform`，
+于是"画在哪"和"点到哪"差了约 (canvas − grid)/2，笔刷整体偏左上。
+
+**绘制越界按裁剪处理，不按错误处理**：`World.Paint` 先把每个矩形与网格求交再发给引擎，
+空的那部分丢弃。快速拖拽经常一笔甩出边界，那是正常手势，不该抛异常；
+引擎侧仍严格拒绝真正非法的 op（反向矩形、未知物种），这类继续报错，视图层用 `Guard()`
+转成状态栏提示而不是崩溃。
+
 ## 图案与 RLE
 
 - RLE 严格 Golly 单状态语义（`b/o/$/!`，`#` 注释），多物种将来走 `.cew`（附录 A.6）。

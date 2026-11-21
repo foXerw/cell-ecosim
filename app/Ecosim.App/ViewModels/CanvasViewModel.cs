@@ -50,11 +50,30 @@ public sealed class CanvasViewModel : ObservableObject
         get => _viewport;
         private set
         {
-            if (Set(ref _viewport, value)) RaiseDependent(nameof(ZoomPercent));
+            if (!Set(ref _viewport, value)) return;
+            RaiseDependent(nameof(ZoomPercent));
+            RaiseDependent(nameof(Destination));
+            RaiseDependent(nameof(CanvasLeft));
+            RaiseDependent(nameof(CanvasTop));
+            RaiseDependent(nameof(CanvasWidth));
+            RaiseDependent(nameof(CanvasHeight));
         }
     }
 
     public int ZoomPercent => (int)Math.Round(Viewport.CellSize * 100);
+
+    /// <summary>Where the grid is drawn. The view lays the bitmap out from
+    /// these four values instead of a render transform, so there is no implicit
+    /// centering between what is drawn and what a click maps to.</summary>
+    public ScreenRect Destination => Viewport.DestinationRect(_world.Width, _world.Height);
+
+    public double CanvasLeft => Destination.X;
+
+    public double CanvasTop => Destination.Y;
+
+    public double CanvasWidth => Destination.Width;
+
+    public double CanvasHeight => Destination.Height;
 
     public CanvasTool Tool
     {
