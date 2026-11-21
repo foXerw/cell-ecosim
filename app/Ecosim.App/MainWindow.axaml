@@ -84,6 +84,38 @@
             <Button Content="⬇ 放置到中心" Command="{Binding ApplyPatternCommand}" />
           </StackPanel>
 
+          <StackPanel Spacing="4">
+            <TextBlock Text="参数（由引擎描述表生成）" FontWeight="SemiBold" />
+            <ItemsControl ItemsSource="{Binding Params.Groups}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="core:ParamGroup">
+                  <StackPanel Spacing="2" Margin="0,5,0,0">
+                    <TextBlock Text="{Binding Section}" FontSize="12" Opacity="0.65" />
+                    <ItemsControl ItemsSource="{Binding Sliders}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="core:ParamSlider">
+                          <StackPanel Spacing="0">
+                            <Grid ColumnDefinitions="*,Auto">
+                              <TextBlock Text="{Binding Title}" FontSize="12" Opacity="0.85" />
+                              <TextBlock Grid.Column="1" Text="{Binding Value, StringFormat={}{0:N0}}"
+                                         FontSize="12" Opacity="0.6" />
+                            </Grid>
+                            <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                    Value="{Binding Value}" SmallChange="{Binding Step}"
+                                    LargeChange="{Binding Step}" />
+                            <TextBlock Text="{Binding Error}" FontSize="11" Foreground="#FFB3B3"
+                                       TextWrapping="Wrap"
+                                       IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
           <StackPanel Spacing="6">
             <TextBlock Text="规则 B / S" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" Spacing="6">

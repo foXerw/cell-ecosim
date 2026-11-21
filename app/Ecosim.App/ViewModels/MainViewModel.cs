@@ -39,6 +39,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         _world = CreateWorld(DefaultWidth, DefaultHeight, WorldConfig.Default(DefaultWidth, DefaultHeight));
         _canvas = new CanvasViewModel(_world);
+        Params = new ParamsModel(_world);
         _clock = CreateClock();
 
         // The display runs on its own beat. Coupling repaints to simulation
@@ -98,6 +99,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public World World => _world;
 
     public CanvasViewModel Canvas => _canvas;
+
+    /// <summary>Sliders generated from the engine's parameter table.</summary>
+    public ParamsModel Params { get; private set; }
 
     public WriteableBitmap? CanvasBitmap => _canvasBitmap;
 
@@ -375,7 +379,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         _world = CreateWorld(config.Width, config.Height, config);
         _canvas = new CanvasViewModel(_world);
+        Params = new ParamsModel(_world);
         OnPropertyChanged(nameof(Canvas));
+        OnPropertyChanged(nameof(Params));
         _clock = CreateClock();
         if (wasRunning)
         {
