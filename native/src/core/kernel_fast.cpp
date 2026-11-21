@@ -51,12 +51,13 @@ uint8_t neighbor_mask(const Planes& in, int32_t w, int32_t h, int32_t x, int32_t
 }
 
 void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, const RuleTable& rules,
-               int32_t topology, int32_t* counts_out) {
-  step_fast(in, out, w, h, 0, h, rules, topology, counts_out);
+               int32_t topology, int32_t* counts_out, EnergyHistogram* histogram_out) {
+  step_fast(in, out, w, h, 0, h, rules, topology, counts_out, histogram_out);
 }
 
 void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, int32_t y_begin,
-               int32_t y_end, const RuleTable& rules, int32_t topology, int32_t* counts_out) {
+               int32_t y_end, const RuleTable& rules, int32_t topology, int32_t* counts_out,
+               EnergyHistogram* histogram_out) {
   const bool torus = topology == ECOSIM_TOPOLOGY_TORUS;
 
   // Three rotating rows of 0/1 alive flags. Reading these instead of striding
@@ -117,6 +118,10 @@ void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, int32_t y_be
       out_energy[x] = in_energy[x];
       out_resource[x] = in_resource[x];
       if (counts_out != nullptr && out_species[x] != 0) ++counts_out[out_species[x]];
+      if (histogram_out != nullptr && out_species[x] != 0) {
+        const int32_t bucket = energy_bucket(out_species[x], out_energy[x]);
+        if (bucket >= 0) ++(*histogram_out)[bucket];
+      }
     }
 
     std::swap(up, mid);

@@ -29,6 +29,6 @@ void sense(const Planes& in, int32_t w, int32_t h, int32_t topology, SenseField&
 /// board. The caller (World) records it: the pipeline must not call back into
 /// World's out-of-line members, because that would create a cycle inside
 /// libecosim_core.a, and ld resolves archives in a single pass.
-void run_ecosystem(World& w, SpeciesCounts* counts_out);
+void run_ecosystem(World& w, SpeciesCounts* counts_out, EnergyHistogram* histogram_out);
 
 }  // namespace ecosim

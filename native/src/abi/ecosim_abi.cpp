@@ -358,6 +358,36 @@ int32_t ecosim_snapshot_restore(EcosimWorld* world, int32_t index) {
   return w->restore_snapshot(index);
 }
 
+int32_t ecosim_energy_histogram(const EcosimWorld* world, int32_t buckets, int32_t* out,
+                                 int32_t out_capacity) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (out == nullptr || out_capacity <= 0) {
+    ecosim::set_error("energy_histogram 需要输出缓冲与正数容量");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (buckets < 2 || buckets > out_capacity) {
+    char msg[128];
+    std::snprintf(msg, sizeof(msg), "buckets %d 需要落在 2..%d（输出容量）之间", buckets,
+                  out_capacity);
+    ecosim::set_error(msg);
+    return ECOSIM_ERR_RANGE;
+  }
+
+  const ecosim::EnergyHistogram& src = w->last_histogram();
+  const int32_t internal = ecosim::kHistogramBuckets;
+  for (int32_t i = 0; i < buckets; ++i) out[i] = 0;
+  // Fold 16 buckets into N by summing every internal bucket whose midpoint
+  // falls inside the requested one. Exact enough for bars, and no allocation.
+  for (int32_t b = 0; b < internal; ++b) {
+    const int32_t target = static_cast<int32_t>(
+        (static_cast<int64_t>(b) * buckets + internal / 2) / internal);
+    out[std::min(target, buckets - 1)] += src[b];
+  }
+  return ECOSIM_OK;
+}
+
 int32_t ecosim_event_poll(EcosimWorld* world, EcosimEvent* out, int32_t cap,
                           int32_t* out_count) {
   ecosim::clear_error();

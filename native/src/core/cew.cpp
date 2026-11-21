@@ -119,6 +119,7 @@ int32_t decode(const uint8_t* data, size_t size, World& world, std::string& why)
   world.set_params(params);
   world.set_generation(header.generation);
   world.grid().copy_cur_to_nxt();
+  world.recount();
   why.clear();
   return ECOSIM_OK;
 }

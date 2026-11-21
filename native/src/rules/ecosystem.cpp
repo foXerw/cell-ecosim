@@ -75,6 +75,7 @@ struct Ctx {
   const EcosimParams* p;
   std::vector<uint8_t>* eaten;
   std::vector<SpeciesCounts>* band_counts;
+  std::vector<EnergyHistogram>* band_histograms;
   int32_t w;
   int32_t h;
   bool torus;
@@ -309,7 +310,8 @@ void apply_disperse(const Ctx& c, const std::vector<std::vector<MoveAction>>& pe
 
 /// Last stage that touches every cell, so it also takes the census that
 /// history keeps: no separate counting pass is needed anywhere.
-void regrow_rows(const Ctx& c, int32_t y0, int32_t y1, SpeciesCounts* counts) {
+void regrow_rows(const Ctx& c, int32_t y0, int32_t y1, SpeciesCounts* counts,
+                   EnergyHistogram* histogram) {
   Planes& io = *c.out;
   for (int32_t y = y0; y < y1; ++y) {
     for (int32_t x = 0; x < c.w; ++x) {
@@ -331,6 +333,10 @@ void regrow_rows(const Ctx& c, int32_t y0, int32_t y1, SpeciesCounts* counts) {
       // The census has to see every cell, including the ones that did not
       // sprout, so it lives after the branch rather than inside it.
       if (counts != nullptr && io.species[i] != 0) ++(*counts)[io.species[i]];
+      if (histogram != nullptr && io.species[i] != 0) {
+        const int32_t bucket = energy_bucket(io.species[i], io.energy[i]);
+        if (bucket >= 0) ++(*histogram)[bucket];
+      }
     }
   }
 }
@@ -367,7 +373,7 @@ void sense(const Planes& in, int32_t w, int32_t h, int32_t topology, SenseField&
   sense_rows(c, 0, h);
 }
 
-void run_ecosystem(World& w, SpeciesCounts* counts_out) {
+void run_ecosystem(World& w, SpeciesCounts* counts_out, EnergyHistogram* histogram_out) {
   Grid& grid = w.grid();
   const int32_t W = grid.w();
   const int32_t H = grid.h();
@@ -384,6 +390,7 @@ void run_ecosystem(World& w, SpeciesCounts* counts_out) {
   sf.allocate(W, H);  // also zeroes: the census accumulates
   std::vector<uint8_t> eaten(n, 0);
   std::vector<SpeciesCounts> band_counts(static_cast<size_t>(bands), SpeciesCounts{});
+  std::vector<EnergyHistogram> band_histograms(static_cast<size_t>(bands), EnergyHistogram{});
 
   Ctx c;
   c.in = &grid.cur();
@@ -391,6 +398,7 @@ void run_ecosystem(World& w, SpeciesCounts* counts_out) {
   c.sf = &sf;
   c.eaten = &eaten;
   c.band_counts = &band_counts;
+  c.band_histograms = &band_histograms;
   c.p = &w.params();
   c.w = W;
   c.h = H;
@@ -432,13 +440,19 @@ void run_ecosystem(World& w, SpeciesCounts* counts_out) {
   // 6. regrow per cell, taking the census as it goes.
   pool.run_bands(H, band_rows, [&](int32_t y0, int32_t y1) {
     SpeciesCounts local{};
-    regrow_rows(c, y0, y1, &local);
+    EnergyHistogram local_hist{};
+    regrow_rows(c, y0, y1, &local, &local_hist);
     (*c.band_counts)[static_cast<size_t>(y0 / band_rows)] = local;
+    (*c.band_histograms)[static_cast<size_t>(y0 / band_rows)] = local_hist;
   });
 
   if (counts_out != nullptr) {
     counts_out->fill(0);
     for (const auto& per_band : *c.band_counts) merge_counts(*counts_out, per_band);
+  }
+  if (histogram_out != nullptr) {
+    histogram_out->fill(0);
+    for (const auto& per_band : *c.band_histograms) merge_histogram(*histogram_out, per_band);
   }
 
   grid.swap_buffers();

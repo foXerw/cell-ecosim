@@ -20,8 +20,7 @@ public class AnalysisCostTests
         // Warm the caches, then measure the same three calls the panel makes.
         void Refresh()
         {
-            var snapshot = world.Capture(includeHeat: true);
-            _ = world.EnergyHistogram(12, snapshot);
+            _ = world.EnergyHistogram(12);
             _ = world.History(600);
         }
 
@@ -47,8 +46,7 @@ public class AnalysisCostTests
         var stepMs = sw.Elapsed.TotalMilliseconds / 10;
 
         sw.Restart();
-        var snapshot = world.Capture(includeHeat: true);
-        _ = world.EnergyHistogram(12, snapshot);
+        _ = world.EnergyHistogram(12);
         sw.Stop();
         var analysisMs = sw.Elapsed.TotalMilliseconds;
 

@@ -47,6 +47,27 @@ public class RleCodecTests
     }
 
     [Fact]
+    public void An_absurd_declared_size_is_refused_instead_of_allocating()
+    {
+        // A parser that trusts its input's size claims will happily try to
+        // materialise 16 million cells. Feeding a binary archive to this
+        // reader did exactly that and took the test host down with it.
+        // one run too long
+        Assert.Throws<FormatException>(() => RleCodec.Decode("16000000b!"));
+        // many runs, but a declared live total beyond any board we support
+        Assert.Throws<FormatException>(() => RleCodec.Decode("5000000o!"));
+        // and a width claim beyond the same bound
+        Assert.Throws<FormatException>(() => RleCodec.Decode("1o$" + new string('9', 7) + "b!"));
+
+        // A large but plausible file still parses, and dead space costs O(1)
+        // rather than one iteration per cell.
+        var doc = RleCodec.Decode("1000000b!");
+        Assert.Empty(doc.Cells);
+        Assert.Equal(1_000_000, doc.Width);
+        Assert.Equal(100_000, RleCodec.Decode("100000o!").Cells.Count);
+    }
+
+    [Fact]
     public void Managed_and_native_decoders_agree_cell_for_cell()
     {
         var doc = RleCodec.Decode(Glider);

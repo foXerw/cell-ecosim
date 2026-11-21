@@ -84,6 +84,10 @@ internal static class NativeMethods
     public static extern int ecosim_snapshot_restore(IntPtr world, int index);
 
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_energy_histogram(IntPtr world, int buckets,
+                                                     int[] out_buckets, int out_capacity);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     public static extern int ecosim_event_poll(IntPtr world,
                                                [In, Out] EcosimEventDto[] out_events, int cap,
                                                out int out_count);

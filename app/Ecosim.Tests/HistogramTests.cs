@@ -12,12 +12,29 @@ public class HistogramTests
     }
 
     [Fact]
+    public void The_engines_incremental_histogram_matches_a_recount()
+    {
+        // The failure mode of incremental statistics is "forgot to update on
+        // swap", which looks like a stale chart rather than a crash. So: ask
+        // the engine, recount the same generation from a snapshot, compare.
+        using var world = Ecosystem();
+        for (var round = 0; round < 5; ++round)
+        {
+            world.Step(7);
+            var engine = world.EnergyHistogram(16);
+            var recount = World.EnergyHistogramFromSnapshot(
+                world.Capture(includeHeat: true), 16);
+            Assert.Equal(recount, engine);
+        }
+    }
+
+    [Fact]
     public void Buckets_sum_to_the_living_population()
     {
         using var world = Ecosystem();
         world.Step(6);
         var snapshot = world.Capture(includeHeat: true);
-        var histogram = world.EnergyHistogram(12, snapshot);
+        var histogram = world.EnergyHistogram(12);
 
         Assert.Equal(12, histogram.Length);
         Assert.Equal(snapshot.Alive, histogram.Sum());
@@ -39,9 +56,10 @@ public class HistogramTests
         Assert.Equal(2, world.EnergyHistogram(1).Length);
         Assert.Equal(64, world.EnergyHistogram(1000).Length);
 
-        // A species-only snapshot has no energy planes to read.
+        // The snapshot path needs energy planes; the engine path does not care.
         var thin = world.Capture();
-        Assert.Equal(0, world.EnergyHistogram(10, thin).Sum());
+        Assert.Equal(0, World.EnergyHistogramFromSnapshot(thin, 10).Sum());
+        Assert.True(world.EnergyHistogram(10).Sum() > 0);
     }
 
     [Fact]

@@ -54,7 +54,20 @@ class World {
 
   /// Inline on purpose: the pipeline reports a census, it does not call into
   /// world.cpp, and an archive cannot resolve a cycle between two members.
-  void record_generation(const SpeciesCounts& counts) { history_.push(generation_ + 1, counts); }
+  void record_generation(const SpeciesCounts& counts, const EnergyHistogram& histogram) {
+    last_histogram_ = histogram;
+    history_.push(generation_ + 1, counts);
+  }
+
+  /// Population by normalised energy, describing the current board. Reading
+  /// twelve integers beats copying four planes to work it out.
+  const EnergyHistogram& last_histogram() const { return last_histogram_; }
+
+  /// Recomputes counts and histogram from the board. Called after anything that
+  /// rewrites the whole grid (randomize, clear, bulk load), so the panels are
+  /// never showing an empty chart over a board that is visibly full. The
+  /// history ring is deliberately not fed: it holds generation samples.
+  void recount();
 
   const HistoryRing& history() const { return history_; }
 
@@ -101,6 +114,7 @@ class World {
   EcosimParams params_;
   Grid grid_;
   HistoryRing history_;
+  EnergyHistogram last_histogram_{};
   EventQueue events_;
   SnapshotRing snapshots_;
   std::unique_ptr<parallel::Pool> pool_;

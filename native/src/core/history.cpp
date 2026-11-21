@@ -1,8 +1,17 @@
 #include "core/history.h"
 
+#include "core/species.h"
+
 #include <algorithm>
 
 namespace ecosim {
+
+int32_t energy_bucket(uint8_t species, uint16_t energy) {
+  if (species == 0) return -1;
+  const uint32_t ceiling = std::max<uint32_t>(1, species_of(species).max_energy);
+  const uint32_t share = static_cast<uint32_t>(energy) * kHistogramBuckets / ceiling;
+  return static_cast<int32_t>(std::min<uint32_t>(share, kHistogramBuckets - 1));
+}
 
 HistoryRing::HistoryRing(int32_t capacity) : samples_(std::max(capacity, 1)) {}
 

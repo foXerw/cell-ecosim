@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "core/grid.h"
+#include "core/history.h"
 #include "core/kernel.h"
 
 namespace ecosim {
@@ -30,14 +31,15 @@ int32_t popcount8(uint8_t mask);
 /// already writes every cell, so keeping history costs no extra scan; the
 /// caller zeroes it per band and merges afterwards.
 void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, const RuleTable& rules,
-               int32_t topology, int32_t* counts_out = nullptr);
+               int32_t topology, int32_t* counts_out = nullptr,
+               EnergyHistogram* histogram_out = nullptr);
 
 /// Row-range variant used by the band split: reads rows [y_begin-1, y_end] of
 /// `in` (the halo is read-only, so neighbouring bands may share it) and writes
 /// only rows [y_begin, y_end) of `out`, which keeps band outputs disjoint.
 void step_fast(const Planes& in, Planes& out, int32_t w, int32_t h, int32_t y_begin,
                int32_t y_end, const RuleTable& rules, int32_t topology,
-               int32_t* counts_out = nullptr);
+               int32_t* counts_out = nullptr, EnergyHistogram* histogram_out = nullptr);
 
 }  // namespace kernel
 }  // namespace ecosim

@@ -17,6 +17,19 @@ inline void merge_counts(SpeciesCounts& into, const SpeciesCounts& added) {
   for (size_t i = 0; i < into.size(); ++i) into[i] += added[i];
 }
 
+/// Energy distribution buckets, filled by the same pass that counts cells.
+/// Sixteen slots: the UI merges down if it wants fewer bars.
+constexpr int32_t kHistogramBuckets = 16;
+using EnergyHistogram = std::array<int32_t, kHistogramBuckets>;
+
+/// Which bucket a cell's energy belongs in, normalised by its species'
+/// ceiling: a grazer at 150 of 400 is not healthier than an alga at 150 of 240.
+int32_t energy_bucket(uint8_t species, uint16_t energy);
+
+inline void merge_histogram(EnergyHistogram& into, const EnergyHistogram& added) {
+  for (size_t i = 0; i < into.size(); ++i) into[i] += added[i];
+}
+
 inline int32_t total_alive(const SpeciesCounts& counts) {
   int32_t n = 0;
   for (size_t i = 1; i < counts.size(); ++i) n += counts[i];

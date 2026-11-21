@@ -92,25 +92,27 @@ public sealed class World : IDisposable
     public SpeciesSnapshot Capture(bool includeHeat = false) => _native.Capture(includeHeat);
 
     /// <summary>
-    /// Distribution of normalised energy across the living cells, computed from
-    /// a snapshot on the managed side: the engine already keeps energy per
-    /// cell, and this is a chart, not a simulation input, so it costs nothing
-    /// in the step loop.
+    /// Energy distribution of the last recorded generation, straight from the
+    /// engine's census. This is the cheap path the panel uses.
     /// </summary>
-    public int[] EnergyHistogram(int buckets = 12, SpeciesSnapshot? snapshot = null)
+    public int[] EnergyHistogram(int buckets = 12) => _native.EnergyHistogram(buckets);
+
+    /// <summary>
+    /// The same histogram recomputed from a snapshot. Slower by design: it
+    /// exists so a test can prove the engine's incremental numbers agree with
+    /// a plain recount, which is the failure mode of "forgot to update on swap".
+    /// </summary>
+    public static int[] EnergyHistogramFromSnapshot(SpeciesSnapshot board, int buckets = 12)
     {
         var count = Math.Clamp(buckets, 2, 64);
         var histogram = new int[count];
-        var board = snapshot ?? Capture(includeHeat: true);
-        if (board.Energy is null || board.Resource is null) return histogram;
+        if (board.Energy is null) return histogram;
 
         for (var i = 0; i < board.Species.Length; ++i)
         {
             var species = board.Species[i];
             if (species == 0) continue;
             var energy = BitConverter.ToUInt16(board.Energy, i * 2);
-            // Species differ in their ceiling by 3x, so normalise before
-            // bucketing or the algae would always pile into the first bar.
             var share = (int)(energy * count / (long)SpeciesCeiling(species));
             histogram[Math.Clamp(share, 0, count - 1)]++;
         }

@@ -272,6 +272,12 @@ ECOSIM_API int32_t ECOSIM_CALL ecosim_snapshot_info(const EcosimWorld* world, in
 ECOSIM_API int32_t ECOSIM_CALL ecosim_snapshot_capture(EcosimWorld* world);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_snapshot_restore(EcosimWorld* world, int32_t index);
 
+/* Population by normalised energy, from the last recorded generation. The
+ * engine keeps sixteen internal buckets and folds them down to `buckets`. */
+ECOSIM_API int32_t ECOSIM_CALL ecosim_energy_histogram(const EcosimWorld* world,
+                                                       int32_t buckets, int32_t* out,
+                                                       int32_t out_capacity);
+
 ECOSIM_API int32_t ECOSIM_CALL ecosim_event_poll(EcosimWorld* world, EcosimEvent* out,
                                                  int32_t cap, int32_t* out_count);
 

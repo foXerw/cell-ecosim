@@ -12,7 +12,12 @@ public sealed record RleDocument(int Width, int Height, string? Rule,
 /// </summary>
 public static class RleCodec
 {
-    private const int MaxRun = 1 << 24;
+    // Bounds, not politeness: a file that declares 16 million cells in one run
+    // would otherwise make Decode allocate until the process dies. That is not
+    // hypothetical - feeding a binary .cew to this parser does exactly that,
+    // because the binary happens to contain digit sequences.
+    private const int MaxRun = 1 << 20;
+    private const int MaxCells = 4 << 20;  // 4M cells: larger than any board we support
 
     public static RleDocument Decode(string text)
     {
@@ -82,6 +87,13 @@ public static class RleCodec
             {
                 if (c == 'o')
                 {
+                    // Live cells have to be materialised, so their total is the
+                    // thing worth bounding.
+                    if (cells.Count + n > MaxCells)
+                    {
+                        throw new FormatException(
+                            $"RLE 声明的活细胞数超出合理范围（> {MaxCells}），文件可能已损坏");
+                    }
                     for (var k = 0; k < n; ++k)
                     {
                         cells.Add((x, y));
@@ -91,12 +103,25 @@ public static class RleCodec
                 }
                 else
                 {
-                    for (var k = 0; k < n; ++k) Track(x++, y);
+                    // Dead space is just a cursor move; looping over it turned a
+                    // two-hundred-byte file into hours of work.
+                    if (x + n > MaxCells)
+                    {
+                        throw new FormatException(
+                            $"RLE 声明的宽度超出合理范围（{x + n} > {MaxCells}），文件可能已损坏");
+                    }
+                    Track(x + n - 1, y);
+                    x += n;
                 }
                 continue;
             }
             if (c == '$')
             {
+                if (y + n > MaxCells)
+                {
+                    throw new FormatException(
+                        $"RLE 声明的行数超出合理范围（{y + n} 行），文件可能已损坏");
+                }
                 y += n;
                 x = 0;
                 continue;

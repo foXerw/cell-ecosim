@@ -403,8 +403,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         HistorySamples = _world.History(600);
         OnPropertyChanged(nameof(HistorySamples));
 
-        var board = _world.Capture(includeHeat: true);
-        Histogram = _world.EnergyHistogram(12, board);
+        // The engine already counted energies during the census; reading twelve
+        // integers is not the same bargain as copying four planes.
+        Histogram = _world.EnergyHistogram(12);
         OnPropertyChanged(nameof(Histogram));
 
         var fresh = _world.PollEvents();

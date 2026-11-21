@@ -422,6 +422,22 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    /// <summary>Energy distribution of the last recorded generation, read as
+    /// twelve-ish integers rather than by copying four planes across the
+    /// border. The engine filled it during the census it already performs.</summary>
+    public int[] EnergyHistogram(int buckets)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            var count = Math.Clamp(buckets, 2, 64);
+            var buffer = new int[count];
+            ErrorTranslation.ThrowIfFailed("energy_histogram",
+                NativeMethods.ecosim_energy_histogram(handle, count, buffer, buffer.Length));
+            return buffer;
+        }
+    }
+
     public ulong Hash()
     {
         lock (_gate)

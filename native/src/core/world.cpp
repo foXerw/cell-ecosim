@@ -83,6 +83,7 @@ int32_t World::step(int32_t n_steps) {
   const int32_t band_rows = parallel::band_rows_for(grid_.h(), pool_->size());
   const int32_t bands = (grid_.h() + band_rows - 1) / band_rows;
   std::vector<SpeciesCounts> band_counts(static_cast<size_t>(bands));
+  std::vector<EnergyHistogram> band_histograms(static_cast<size_t>(bands));
   const size_t n = grid_.count();
 
   for (int32_t i = 0; i < n_steps; ++i) {
@@ -91,25 +92,34 @@ int32_t World::step(int32_t n_steps) {
       // serial apply in cell order) - see rules/ecosystem.cpp - and reports
       // the census rather than calling back into this file.
       SpeciesCounts eco_counts{};
-      run_ecosystem(*this, &eco_counts);
-      record_generation(eco_counts);
+      EnergyHistogram eco_hist{};
+      run_ecosystem(*this, &eco_counts, &eco_hist);
+      record_generation(eco_counts, eco_hist);
       events_.observe(generation_ + 1, eco_counts.data(), static_cast<int32_t>(n));
     } else {
       // Bands write disjoint row ranges of nxt and only read cur, so they can
       // run concurrently. The result is proven identical to a single-threaded
       // pass by tests/test_parallel.cpp.
-      // Each band counts into its own stack array and hands it back once.
+      // Each band counts into its own stack arrays and hands them back once:
+      // writing straight into a shared vector made neighbouring bands fight
+      // over the same cache lines (1024x1024 went 0.39 to 2.10 ms/gen).
       // Writing straight into a shared vector made neighbouring bands fight
       // over the same cache lines: 1024x1024 went from 0.39 to 2.1 ms/gen.
       pool_->run_bands(grid_.h(), band_rows, [&](int32_t y0, int32_t y1) {
         SpeciesCounts local{};
+        EnergyHistogram local_hist{};
         kernel::step_fast(grid_.cur(), grid_.nxt(), grid_.w(), grid_.h(), y0, y1, rules_,
-                          cfg_.topology, local.data());
+                          cfg_.topology, local.data(), &local_hist);
         band_counts[static_cast<size_t>(y0 / band_rows)] = local;
+        band_histograms[static_cast<size_t>(y0 / band_rows)] = local_hist;
       });
       SpeciesCounts counts{};
-      for (const auto& per_band : band_counts) merge_counts(counts, per_band);
-      record_generation(counts);
+      EnergyHistogram histogram{};
+      for (size_t b = 0; b < band_counts.size(); ++b) {
+        merge_counts(counts, band_counts[b]);
+        merge_histogram(histogram, band_histograms[b]);
+      }
+      record_generation(counts, histogram);
       events_.observe(generation_ + 1, counts.data(), static_cast<int32_t>(n));
       grid_.swap_buffers();
     }
@@ -240,7 +250,22 @@ int32_t World::load_species(const uint8_t* species, int32_t count) {
     cur.energy[i] = s ? species_of(s).initial_energy : 0;
   }
   grid_.copy_cur_to_nxt();
+  recount();
   return ECOSIM_OK;
+}
+
+void World::recount() {
+  SpeciesCounts counts{};
+  EnergyHistogram histogram{};
+  const Planes& cur = grid_.cur();
+  for (size_t i = 0; i < cur.species.size(); ++i) {
+    const uint8_t s = cur.species[i];
+    if (s == 0) continue;
+    ++counts[s];
+    const int32_t bucket = energy_bucket(s, cur.energy[i]);
+    if (bucket >= 0) ++histogram[bucket];
+  }
+  last_histogram_ = histogram;
 }
 
 int32_t World::clear(int32_t fill_species) {
@@ -258,6 +283,7 @@ int32_t World::clear(int32_t fill_species) {
   std::fill(cur.energy.begin(), cur.energy.end(), energy);
   std::fill(cur.resource.begin(), cur.resource.end(), uint8_t{0});
   grid_.copy_cur_to_nxt();
+  recount();
   return ECOSIM_OK;
 }
 
@@ -292,6 +318,7 @@ int32_t World::randomize(const EcosimSeedConfig& seed_cfg) {
     cur.resource[i] = 0;
   }
   grid_.copy_cur_to_nxt();
+  recount();
   return ECOSIM_OK;
 }
 
