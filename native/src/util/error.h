@@ -1,15 +1,27 @@
 #pragma once
 
-#include <string>
+#include <cstddef>
 
 namespace ecosim {
 
-// Thread-local last error message, handed out as a stable UTF-8 C string by the
-// ABI layer. Set on every failing call; cleared on every successful one.
+/// Per-thread last-error message.
+///
+/// Per *thread*, not per process: each world owns its own lock, so two worlds
+/// on two threads can legitimately be inside the engine at the same time. A
+/// process-wide buffer did get corrupted by exactly that (xUnit runs test
+/// classes in parallel), which showed up as an intermittent AccessViolation in
+/// the test host rather than as a wrong message.
+///
+/// A POD thread_local needs no destructor registration, which matters here:
+/// this toolchain's static runtime does not provide __cxa_thread_atexit that a
+/// thread_local std::string requires.
+constexpr size_t kErrorCapacity = 512;
+
 void set_error(const char* msg);
 void clear_error();
 
-// Borrowed reference, valid until the next set_error/clear_error on this thread.
-const std::string& current_error();
+/// Borrowed pointer to this thread's buffer, valid until the next
+/// set_error/clear_error on the same thread.
+const char* current_error();
 
 }  // namespace ecosim

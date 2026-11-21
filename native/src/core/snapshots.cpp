@@ -1,6 +1,7 @@
 #include "core/snapshots.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 
 #include "core/plane_codec.h"

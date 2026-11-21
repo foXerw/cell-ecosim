@@ -72,10 +72,7 @@ int32_t ecosim_abi_struct_size(int32_t which) {
   }
 }
 
-const char* ecosim_last_error(void) {
-  const std::string& msg = ecosim::current_error();
-  return msg.empty() ? "" : msg.c_str();
-}
+const char* ecosim_last_error(void) { return ecosim::current_error(); }
 
 EcosimWorld* ecosim_world_create(const EcosimConfig* cfg) {
   ecosim::clear_error();

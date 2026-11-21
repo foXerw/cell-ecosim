@@ -1,21 +1,34 @@
 #include "util/error.h"
 
-#include <string>
+#include <cstdio>
+#include <cstring>
 
 namespace ecosim {
 
 namespace {
 
-// thread_local: two consumers (the app and the CLI) may step different worlds
-// on different threads and must not read each other's diagnostics.
-thread_local std::string g_message;
+// POD thread_local: no constructor, no destructor, therefore no
+// __cxa_thread_atexit and no dependency on a shared runtime helper.
+thread_local char g_message[kErrorCapacity];
+thread_local bool g_present = false;
 
 }  // namespace
 
-void set_error(const char* msg) { g_message = msg ? msg : "unknown error"; }
+void set_error(const char* msg) {
+  if (msg == nullptr) {
+    g_message[0] = '\0';
+    g_present = false;
+    return;
+  }
+  std::snprintf(g_message, kErrorCapacity, "%s", msg);
+  g_present = true;
+}
 
-void clear_error() { g_message.clear(); }
+void clear_error() {
+  g_message[0] = '\0';
+  g_present = false;
+}
 
-const std::string& current_error() { return g_message; }
+const char* current_error() { return g_present ? g_message : ""; }
 
 }  // namespace ecosim
