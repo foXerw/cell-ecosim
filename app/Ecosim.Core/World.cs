@@ -87,6 +87,16 @@ public sealed class World : IDisposable
 
     public SpeciesSnapshot Capture() => _native.Capture();
 
+    /// <summary>Everything the UI needs to draw a slider per tunable.</summary>
+    public static IReadOnlyList<ParamDescription> ParamDescriptions =>
+        NativeWorld.DescribeParameters();
+
+    public int GetParam(int index) => _native.GetParam(index);
+
+    /// <summary>Hot: takes effect from the next step. Out-of-range values are
+    /// refused by the engine, which names the allowed range in the message.</summary>
+    public void SetParam(int index, int value) => _native.SetParam(index, value);
+
     /// <summary>
     /// Paints a snapshot into caller-owned BGRA memory. Static on purpose: it
     /// touches no world and takes no lock, which is what lets the render pump

@@ -106,6 +106,39 @@ int32_t World::set_params(const EcosimParams& p) {
   return ECOSIM_OK;
 }
 
+int32_t World::get_param(int32_t index, int32_t* out_value) const {
+  if (out_value == nullptr) {
+    set_error("out_value 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (param_desc(index) == nullptr) {
+    char msg[96];
+    std::snprintf(msg, sizeof(msg), "参数索引 %d 不存在（共 %d 个）", index, param_count());
+    set_error(msg);
+    return ECOSIM_ERR_RANGE;
+  }
+  *out_value = param_get(params_, index);
+  return ECOSIM_OK;
+}
+
+int32_t World::set_param(int32_t index, int32_t value) {
+  EcosimParams next = params_;
+  if (!param_set(next, index, value)) {
+    const ParamDesc* d = param_desc(index);
+    char msg[160];
+    if (d == nullptr) {
+      std::snprintf(msg, sizeof(msg), "参数索引 %d 不存在", index);
+    } else {
+      std::snprintf(msg, sizeof(msg), "参数「%s」不接受值 %d（允许 %d..%d）", d->name, value,
+                    d->min_value, d->max_value);
+    }
+    set_error(msg);
+    return ECOSIM_ERR_INVALID;
+  }
+  params_ = next;
+  return ECOSIM_OK;
+}
+
 int32_t World::paint(const EcosimPaintOp* ops, int32_t count) {
   if (ops == nullptr || count < 0) {
     set_error(count == 0 ? "paint 需要至少一个 op" : "ops 为 NULL 或 count 为负");

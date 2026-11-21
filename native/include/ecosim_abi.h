@@ -68,7 +68,8 @@ typedef enum EcosimStructId {
   ECOSIM_STRUCT_PAINT_OP = 4,
   ECOSIM_STRUCT_STATS = 5,
   ECOSIM_STRUCT_SEED = 6,
-  ECOSIM_STRUCT_PARAMS = 7
+  ECOSIM_STRUCT_PARAMS = 7,
+  ECOSIM_STRUCT_PARAM_DESC = 8
 } EcosimStructId;
 
 #pragma pack(push, 4)
@@ -137,6 +138,22 @@ typedef struct EcosimParams {
   int32_t repro_scale_permille[ECOSIM_MAX_SPECIES];
 } EcosimParams;
 
+/* One row of the parameter description table: everything a slider needs,
+ * including the UTF-8 label the UI shows. Index order is part of the contract,
+ * so append only. */
+typedef struct EcosimParamDesc {
+  int32_t struct_size;
+  int32_t index;
+  int32_t group;        /* 0 = global, 1 = per species */
+  int32_t species;      /* 0 when global */
+  int32_t kind;         /* 0 = permille 0..1000, 1 = scale 0..10000 */
+  int32_t min_value;
+  int32_t max_value;
+  int32_t default_value;
+  const char* name;     /* static UTF-8 */
+  const char* label;    /* static UTF-8 */
+} EcosimParamDesc;
+
 #pragma pack(pop)
 
 typedef struct EcosimWorld EcosimWorld;
@@ -176,6 +193,18 @@ ECOSIM_API int32_t ECOSIM_CALL ecosim_paint(EcosimWorld* world, const EcosimPain
 ECOSIM_API int32_t ECOSIM_CALL ecosim_clear(EcosimWorld* world, int32_t fill_species);
 ECOSIM_API int32_t ECOSIM_CALL ecosim_randomize(EcosimWorld* world,
                                                 const EcosimSeedConfig* seed_cfg);
+
+/* --- parameters (hot, effective from the next step) ------------------- */
+ECOSIM_API int32_t ECOSIM_CALL ecosim_param_count(void);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_param_desc(int32_t index, EcosimParamDesc* out);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_params_get(const EcosimWorld* world, EcosimParams* out);
+/* Index-addressed access, matching ecosim_param_desc: the managed side never
+ * has to know which struct field an index maps to. */
+ECOSIM_API int32_t ECOSIM_CALL ecosim_param_get(const EcosimWorld* world, int32_t index,
+                                                int32_t* out_value);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_param_set(EcosimWorld* world, int32_t index,
+                                                int32_t value);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_params_set(EcosimWorld* world, const EcosimParams* params);
 
 /* --- analysis and persistence ---------------------------------------- */
 ECOSIM_API int32_t ECOSIM_CALL ecosim_stats(const EcosimWorld* world, EcosimStats* out);

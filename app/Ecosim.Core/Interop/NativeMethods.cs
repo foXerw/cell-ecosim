@@ -61,6 +61,24 @@ internal static class NativeMethods
     public static extern int ecosim_stats(IntPtr world, ref EcosimStatsDto stats);
 
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_param_count();
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_param_desc(int index, ref EcosimParamDescDto desc);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_params_get(IntPtr world, ref EcosimParamsDto parms);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_params_set(IntPtr world, ref EcosimParamsDto parms);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_param_get(IntPtr world, int index, out int value);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int ecosim_param_set(IntPtr world, int index, int value);
+
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
     public static extern ulong ecosim_hash(IntPtr world);
 
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]

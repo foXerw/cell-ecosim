@@ -25,6 +25,8 @@ public static class AbiConstants
     public const int StructPaintOp = 4;
     public const int StructStats = 5;
     public const int StructSeed = 6;
+    public const int StructParams = 7;
+    public const int StructParamDesc = 8;
 
     public static string Message(int code) => code switch
     {

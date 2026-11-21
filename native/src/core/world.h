@@ -46,6 +46,10 @@ class World {
   const EcosimParams& params() const { return params_; }
   int32_t set_params(const EcosimParams& p);
 
+  /// One tunable at a time, addressed by the description table's index.
+  int32_t get_param(int32_t index, int32_t* out_value) const;
+  int32_t set_param(int32_t index, int32_t value);
+
   uint64_t generation() const { return generation_; }
   const EcosimConfig& config() const { return cfg_; }
   int32_t topology() const { return cfg_.topology; }

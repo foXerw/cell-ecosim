@@ -163,6 +163,49 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    /// <summary>The engine's parameter table. Static because it describes the
+    /// build, not a world.</summary>
+    public static IReadOnlyList<ParamDescription> DescribeParameters()
+    {
+        var count = NativeMethods.ecosim_param_count();
+        if (count <= 0) return Array.Empty<ParamDescription>();
+
+        var list = new List<ParamDescription>(count);
+        for (var i = 0; i < count; ++i)
+        {
+            var dto = EcosimParamDescDto.Create();
+            ErrorTranslation.ThrowIfFailed("param_desc",
+                NativeMethods.ecosim_param_desc(i, ref dto));
+            list.Add(new ParamDescription(
+                dto.index, dto.group, dto.species, dto.kind, dto.min_value, dto.max_value,
+                dto.default_value,
+                Marshal.PtrToStringUTF8(dto.name) ?? "",
+                Marshal.PtrToStringUTF8(dto.label) ?? ""));
+        }
+        return list;
+    }
+
+    public int GetParam(int index)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            ErrorTranslation.ThrowIfFailed("param_get",
+                NativeMethods.ecosim_param_get(handle, index, out var value));
+            return value;
+        }
+    }
+
+    public void SetParam(int index, int value)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            ErrorTranslation.ThrowIfFailed("param_set",
+                NativeMethods.ecosim_param_set(handle, index, value));
+        }
+    }
+
     public ulong Hash()
     {
         lock (_gate)

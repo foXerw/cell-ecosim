@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "core/params.h"
 #include "core/render.h"
 #include "core/rle.h"
 #include "core/world.h"
@@ -31,6 +32,8 @@ static_assert(sizeof(EcosimStats) == 88, "EcosimStats layout drift");
 static_assert(offsetof(EcosimStats, generation) == 4, "generation offset drift");
 static_assert(offsetof(EcosimStats, species_count) == 24, "species_count offset drift");
 static_assert(sizeof(EcosimSeedConfig) == 20, "EcosimSeedConfig layout drift");
+static_assert(sizeof(EcosimParams) == 140, "EcosimParams layout drift");
+static_assert(sizeof(EcosimParamDesc) == 48, "EcosimParamDesc layout drift");
 
 namespace {
 
@@ -57,6 +60,8 @@ int32_t ecosim_abi_struct_size(int32_t which) {
     case ECOSIM_STRUCT_PAINT_OP: return static_cast<int32_t>(sizeof(EcosimPaintOp));
     case ECOSIM_STRUCT_STATS: return static_cast<int32_t>(sizeof(EcosimStats));
     case ECOSIM_STRUCT_SEED: return static_cast<int32_t>(sizeof(EcosimSeedConfig));
+    case ECOSIM_STRUCT_PARAMS: return static_cast<int32_t>(sizeof(EcosimParams));
+    case ECOSIM_STRUCT_PARAM_DESC: return static_cast<int32_t>(sizeof(EcosimParamDesc));
     default: return 0;
   }
 }
@@ -180,6 +185,79 @@ int32_t ecosim_randomize(EcosimWorld* world, const EcosimSeedConfig* seed_cfg) {
     return ECOSIM_ERR_INVALID;
   }
   return w->randomize(*seed_cfg);
+}
+
+int32_t ecosim_param_count(void) { return ecosim::param_count(); }
+
+int32_t ecosim_param_desc(int32_t index, EcosimParamDesc* out) {
+  ecosim::clear_error();
+  if (out == nullptr) {
+    ecosim::set_error("out 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (out->struct_size < static_cast<int32_t>(sizeof(EcosimParamDesc))) {
+    ecosim::set_error("EcosimParamDesc.struct_size 太小");
+    return ECOSIM_ERR_SIZE;
+  }
+  const ecosim::ParamDesc* d = ecosim::param_desc(index);
+  if (d == nullptr) {
+    char msg[96];
+    std::snprintf(msg, sizeof(msg), "参数索引 %d 不存在（共 %d 个）", index,
+                  ecosim::param_count());
+    ecosim::set_error(msg);
+    return ECOSIM_ERR_RANGE;
+  }
+  out->index = d->index;
+  out->group = d->group;
+  out->species = d->species;
+  out->kind = d->kind;
+  out->min_value = d->min_value;
+  out->max_value = d->max_value;
+  out->default_value = d->default_value;
+  out->name = d->name;
+  out->label = d->label;
+  return ECOSIM_OK;
+}
+
+int32_t ecosim_params_get(const EcosimWorld* world, EcosimParams* out) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (out == nullptr) {
+    ecosim::set_error("out 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (out->struct_size < static_cast<int32_t>(sizeof(EcosimParams))) {
+    ecosim::set_error("EcosimParams.struct_size 太小");
+    return ECOSIM_ERR_SIZE;
+  }
+  *out = w->params();
+  return ECOSIM_OK;
+}
+
+int32_t ecosim_param_get(const EcosimWorld* world, int32_t index, int32_t* out_value) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  return w->get_param(index, out_value);
+}
+
+int32_t ecosim_param_set(EcosimWorld* world, int32_t index, int32_t value) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  return w->set_param(index, value);
+}
+
+int32_t ecosim_params_set(EcosimWorld* world, const EcosimParams* params) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (params == nullptr) {
+    ecosim::set_error("params 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  return w->set_params(*params);
 }
 
 int32_t ecosim_stats(const EcosimWorld* world, EcosimStats* out) {

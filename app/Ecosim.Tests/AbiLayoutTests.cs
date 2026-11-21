@@ -19,11 +19,22 @@ public class AbiLayoutTests
     [InlineData(AbiConstants.StructPaintOp, typeof(EcosimPaintOpDto))]
     [InlineData(AbiConstants.StructStats, typeof(EcosimStatsDto))]
     [InlineData(AbiConstants.StructSeed, typeof(EcosimSeedConfigDto))]
+    [InlineData(AbiConstants.StructParams, typeof(EcosimParamsDto))]
+    [InlineData(AbiConstants.StructParamDesc, typeof(EcosimParamDescDto))]
     public void ManagedStructSizeMatchesNative(int which, Type dto)
     {
         var native = NativeMethods.ecosim_abi_struct_size(which);
         Assert.True(native > 0, $"native does not know struct id {which}");
         Assert.Equal(native, Marshal.SizeOf(dto));
+    }
+
+    [Fact]
+    public void ParamsLayoutMatchesNative()
+    {
+        Assert.Equal(140, Marshal.SizeOf<EcosimParamsDto>());
+        Assert.Equal(48, Marshal.SizeOf<EcosimParamDescDto>());
+        Assert.Equal(12, Marshal.OffsetOf<EcosimParamsDto>("metabolism_scale_permille").ToInt32());
+        Assert.Equal(76, Marshal.OffsetOf<EcosimParamsDto>("repro_scale_permille").ToInt32());
     }
 
     [Fact]
