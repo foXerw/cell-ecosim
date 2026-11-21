@@ -24,8 +24,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private int _alive;
     private long _generation;
-    private long _stateVersion;
-    private long _paintedVersion = -1;
+    private long _paintedGeneration = -1;
     private double _stepMs;
     private bool _isRunning;
     private int _speed = 60;
@@ -54,7 +53,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         // unchanged generation costs a texture upload and buys nothing.
         _pump.Tick += (_, _) =>
         {
-            if (_stateVersion != _paintedVersion) Redraw();
+            var snap = _clock.LatestSnapshot;
+            if (snap is not null && snap.Generation != _paintedGeneration) PaintSnapshot(snap);
         };
 
         ToggleRunCommand = new RelayCommand(ToggleRun);
@@ -263,11 +263,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// bug this event exists to prevent).</summary>
     public event EventHandler? FramePainted;
 
-    public void Redraw()
+    /// <summary>Captures the board and paints it. Used for immediate feedback
+    /// while paused (painting, stepping, imports).</summary>
+    public void Redraw() => PaintSnapshot(_world.Capture());
+
+    private void PaintSnapshot(SpeciesSnapshot snapshot)
     {
-        _paintedVersion = _stateVersion;
-        Alive = _world.Stats().Alive;
-        _renderer.Draw(_world, Palette);
+        _paintedGeneration = snapshot.Generation;
+        Alive = snapshot.Alive;
+        Generation = snapshot.Generation;
+        _renderer.DrawSnapshot(snapshot, Palette);
         if (!ReferenceEquals(_renderer.Bitmap, _canvasBitmap))
         {
             _canvasBitmap = _renderer.Bitmap;
@@ -484,7 +489,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         // Numbers only: the render pump paints. Painting here would tie the
         // display rate to the simulation rate.
-        _stateVersion++;
         Generation = e.Generation;
         StepMs = e.StepMs;
     }

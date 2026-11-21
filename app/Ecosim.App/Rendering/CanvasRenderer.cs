@@ -28,15 +28,15 @@ public sealed class CanvasRenderer
         return true;
     }
 
-    /// <summary>Renders the current generation. Must be called on the UI thread:
-    /// it locks the bitmap, and the world's lock keeps the step from racing it.</summary>
-    public void Draw(World world, in Palette palette)
+    /// <summary>
+    /// Paints an immutable snapshot. Takes no engine lock: the snapshot was
+    /// copied by the clock thread right after its step, so a repaint can never
+    /// queue behind a long simulation batch.
+    /// </summary>
+    public void DrawSnapshot(SpeciesSnapshot snapshot, in Palette palette)
     {
-        if (EnsureBitmap(world.Width, world.Height))
-        {
-            // A new bitmap means the Image.Source must be rebound by the caller.
-        }
+        EnsureBitmap(snapshot.Width, snapshot.Height);
         using var locked = _bitmap!.Lock();
-        world.RenderInto(locked.Address, locked.RowBytes, palette);
+        World.RenderSnapshotInto(snapshot, locked.Address, locked.RowBytes, palette);
     }
 }

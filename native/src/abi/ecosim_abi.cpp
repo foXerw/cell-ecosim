@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "core/render.h"
 #include "core/rle.h"
 #include "core/world.h"
 #include "util/error.h"
@@ -148,6 +149,12 @@ int32_t ecosim_render_frame(const EcosimWorld* world, uint8_t* bgra, int32_t row
   ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
   if (!w) return ECOSIM_ERR_INVALID;
   return w->render_frame(bgra, row_pitch, palette);
+}
+
+int32_t ecosim_render_species(const uint8_t* species, int32_t w, int32_t h, uint8_t* bgra,
+                              int32_t row_pitch, const EcosimPalette* palette) {
+  ecosim::clear_error();
+  return ecosim::render::species_to_bgra(species, w, h, bgra, row_pitch, palette);
 }
 
 int32_t ecosim_paint(EcosimWorld* world, const EcosimPaintOp* ops, int32_t count) {

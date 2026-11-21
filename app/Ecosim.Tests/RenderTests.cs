@@ -77,6 +77,45 @@ public class RenderTests
     }
 
     [Fact]
+    public void Snapshot_render_matches_the_locked_world_render()
+    {
+        using var world = TwoByTwoWithSpecies();
+        var snapshot = world.Capture();
+        Assert.Equal(2, snapshot.Alive);   // two 1x1 dabs from the helper
+        Assert.Equal(2, snapshot.Width);
+        Assert.Equal(0, snapshot.Generation);
+
+        var viaWorld = new FrameBuffer();
+        world.RenderFrame(viaWorld, Palette.Default);
+
+        var viaSnapshot = new FrameBuffer();
+        viaSnapshot.Ensure(snapshot.Width, snapshot.Height);
+        var pin = GCHandle.Alloc(viaSnapshot.Bytes, GCHandleType.Pinned);
+        try
+        {
+            World.RenderSnapshotInto(snapshot, pin.AddrOfPinnedObject(), viaSnapshot.RowPitch,
+                                     Palette.Default);
+        }
+        finally
+        {
+            pin.Free();
+        }
+
+        Assert.Equal(viaWorld.Bytes, viaSnapshot.Bytes);
+    }
+
+    [Fact]
+    public void A_snapshot_is_immutable_against_later_steps()
+    {
+        using var world = TwoByTwoWithSpecies();
+        var snapshot = world.Capture();
+        var before = (byte[])snapshot.Species.Clone();
+        world.Step(3);
+        Assert.Equal(before, snapshot.Species);
+        Assert.NotEqual(snapshot.Generation, world.Stats().Generation);
+    }
+
+    [Fact]
     public void Render_reports_a_too_small_pitch_instead_of_overrunning()
     {
         using var world = TwoByTwoWithSpecies();

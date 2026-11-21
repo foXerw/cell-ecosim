@@ -1,3 +1,5 @@
+using Ecosim.Core.Interop;
+
 namespace Ecosim.Core;
 
 /// <summary>
@@ -81,6 +83,33 @@ public sealed class World : IDisposable
     {
         buffer.Ensure(Width, Height);
         _native.RenderFrame(buffer.AsMemory(), buffer.RowPitch, palette);
+    }
+
+    public SpeciesSnapshot Capture() => _native.Capture();
+
+    /// <summary>
+    /// Paints a snapshot into caller-owned BGRA memory. Static on purpose: it
+    /// touches no world and takes no lock, which is what lets the render pump
+    /// run while a long step holds the engine lock.
+    /// </summary>
+    public static void RenderSnapshotInto(SpeciesSnapshot snapshot, IntPtr bgra, int rowPitch,
+                                          in Palette palette)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var pin = System.Runtime.InteropServices.GCHandle.Alloc(snapshot.Species,
+                                                                System.Runtime.InteropServices.GCHandleType.Pinned);
+        try
+        {
+            var dto = palette.ToDto();
+            ErrorTranslation.ThrowIfFailed("render_species",
+                Interop.NativeMethods.ecosim_render_species(pin.AddrOfPinnedObject(),
+                                                            snapshot.Width, snapshot.Height,
+                                                            bgra, rowPitch, ref dto));
+        }
+        finally
+        {
+            pin.Free();
+        }
     }
 
     /// <summary>Zero-copy variant for a locked bitmap's back buffer.</summary>

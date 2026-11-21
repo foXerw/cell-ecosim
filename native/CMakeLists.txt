@@ -27,6 +27,7 @@ add_library(ecosim_core STATIC
   src/core/kernel.cpp
   src/core/kernel_fast.cpp
   src/core/parallel.cpp
+  src/core/render.cpp
   src/core/rle.cpp
   src/core/species.cpp
   src/core/world.cpp

@@ -143,6 +143,26 @@ public sealed class NativeWorld : SafeHandle
         }
     }
 
+    /// <summary>Copies the species plane plus stats out in one locked section.
+    /// The result is immutable, so everything downstream can work lock-free.</summary>
+    public SpeciesSnapshot Capture()
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            var view = EcosimGridViewDto.Create();
+            ErrorTranslation.ThrowIfFailed("grid_view",
+                NativeMethods.ecosim_world_grid_view(handle, ref view));
+            var bytes = new byte[(long)view.w * view.h];
+            Marshal.Copy(view.species, bytes, 0, bytes.Length);
+
+            var stats = EcosimStatsDto.Create();
+            ErrorTranslation.ThrowIfFailed("stats", NativeMethods.ecosim_stats(handle, ref stats));
+            return new SpeciesSnapshot(bytes, view.w, view.h, (long)stats.generation,
+                                       stats.alive_count);
+        }
+    }
+
     public ulong Hash()
     {
         lock (_gate)

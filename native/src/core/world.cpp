@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "core/kernel_fast.h"
+#include "core/render.h"
 #include "core/species.h"
 #include "util/error.h"
 #include "util/rng.h"
@@ -146,24 +147,8 @@ int32_t World::render_frame(uint8_t* bgra, int32_t row_pitch, const EcosimPalett
     set_error("EcosimPalette.struct_size 太小");
     return ECOSIM_ERR_SIZE;
   }
-  const int32_t min_pitch = grid_.w() * 4;
-  if (row_pitch < min_pitch) {
-    char msg[128];
-    std::snprintf(msg, sizeof(msg), "row_pitch %d 小于网格宽度所需 %d 字节", row_pitch, min_pitch);
-    set_error(msg);
-    return ECOSIM_ERR_INVALID;
-  }
-
-  const std::vector<uint8_t>& species = grid_.cur().species;
-  for (int32_t y = 0; y < grid_.h(); ++y) {
-    const uint8_t* row = species.data() + static_cast<size_t>(y) * grid_.w();
-    uint8_t* out = bgra + static_cast<size_t>(y) * row_pitch;
-    for (int32_t x = 0; x < grid_.w(); ++x) {
-      const uint32_t colour = palette->cell_bgra[row[x] % ECOSIM_MAX_SPECIES];
-      std::memcpy(out + static_cast<size_t>(x) * 4, &colour, sizeof(colour));
-    }
-  }
-  return ECOSIM_OK;
+  return render::species_to_bgra(grid_.cur().species.data(), grid_.w(), grid_.h(), bgra,
+                                 row_pitch, palette);
 }
 
 int32_t World::clear(int32_t fill_species) {

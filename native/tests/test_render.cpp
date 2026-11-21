@@ -113,3 +113,48 @@ ECOSIM_TEST(render_rejects_bad_arguments) {
   CHECK_EQ_i32(ECOSIM_ERR_INVALID, ecosim_render_frame(nullptr, buf.data(), 16, &pal));
   ecosim_world_destroy(w);
 }
+
+ECOSIM_TEST(render_species_matches_render_frame_for_the_same_state) {
+  EcosimConfig cfg{};
+  cfg.struct_size = sizeof(EcosimConfig);
+  cfg.w = 33;
+  cfg.h = 17;
+  cfg.mode = ECOSIM_MODE_BIRSURV;
+  cfg.topology = ECOSIM_TOPOLOGY_TORUS;
+  cfg.threads = 2;
+  cfg.birth_mask[3] = 1;
+  cfg.survive_mask[2] = 1;
+  cfg.survive_mask[3] = 1;
+  EcosimWorld* w = ecosim_world_create(&cfg);
+
+  EcosimSeedConfig seed{};
+  seed.struct_size = sizeof(seed);
+  seed.species = 1;
+  seed.density_permille = 350;
+  seed.seed = 21;
+  CHECK_EQ_i32(ECOSIM_OK, ecosim_randomize(w, &seed));
+
+  EcosimPalette pal{};
+  pal.struct_size = sizeof(pal);
+  for (int i = 0; i < ECOSIM_MAX_SPECIES; ++i) pal.cell_bgra[i] = 0xFF000000u + 0x010101u * i;
+
+  EcosimGridView view{};
+  view.struct_size = sizeof(view);
+  CHECK_EQ_i32(ECOSIM_OK, ecosim_world_grid_view(w, &view));
+  std::vector<uint8_t> copy(static_cast<size_t>(view.w) * view.h);
+  std::memcpy(copy.data(), view.species, copy.size());
+
+  const int32_t pitch = view.w * 4 + 12;  // odd pitch on purpose
+  std::vector<uint8_t> a(static_cast<size_t>(pitch) * view.h, 0xEE);
+  std::vector<uint8_t> b(static_cast<size_t>(pitch) * view.h, 0xEE);
+  CHECK_EQ_i32(ECOSIM_OK, ecosim_render_frame(w, a.data(), pitch, &pal));
+  CHECK_EQ_i32(ECOSIM_OK,
+               ecosim_render_species(copy.data(), view.w, view.h, b.data(), pitch, &pal));
+  CHECK_TRUE(a == b);
+
+  CHECK_EQ_i32(ECOSIM_ERR_INVALID,
+               ecosim_render_species(nullptr, view.w, view.h, b.data(), pitch, &pal));
+  CHECK_EQ_i32(ECOSIM_ERR_INVALID,
+               ecosim_render_species(copy.data(), view.w, view.h, b.data(), view.w * 4 - 4, &pal));
+  ecosim_world_destroy(w);
+}

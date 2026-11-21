@@ -151,6 +151,13 @@ ECOSIM_API int32_t ECOSIM_CALL ecosim_render_frame(const EcosimWorld* world, uin
                                                    int32_t row_pitch,
                                                    const EcosimPalette* palette);
 
+/* Renders a bare species plane, no world involved. The managed side uses this
+ * to paint from an immutable snapshot so a repaint never waits on the engine
+ * lock (see docs/architecture.md, "渲染"). */
+ECOSIM_API int32_t ECOSIM_CALL ecosim_render_species(const uint8_t* species, int32_t w,
+                                                     int32_t h, uint8_t* bgra, int32_t row_pitch,
+                                                     const EcosimPalette* palette);
+
 /* --- input ------------------------------------------------------------ */
 ECOSIM_API int32_t ECOSIM_CALL ecosim_paint(EcosimWorld* world, const EcosimPaintOp* ops,
                                             int32_t count);

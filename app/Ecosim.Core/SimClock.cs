@@ -74,6 +74,13 @@ public sealed class SimClock : IDisposable
     /// the clock stops rather than throwing on a background thread.</summary>
     public Exception? Failure { get; private set; }
 
+    /// <summary>
+    /// The most recent immutable copy of the board, captured right after each
+    /// step. The render pump paints from this instead of reaching into the
+    /// engine, so painting and stepping never wait on each other.
+    /// </summary>
+    public SpeciesSnapshot? LatestSnapshot { get; private set; }
+
     public void Start()
     {
         lock (_sync)
@@ -213,6 +220,7 @@ public sealed class SimClock : IDisposable
             try
             {
                 _world.Step(due);
+                LatestSnapshot = _world.Capture();
             }
             catch (Exception ex)
             {
