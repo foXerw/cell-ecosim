@@ -265,6 +265,13 @@ typedef enum EcosimEventKind {
   ECOSIM_EVENT_APPEARANCE = 2
 } EcosimEventKind;
 
+/* --- snapshots (the engine owns the only copy; see appendix A.3) -------- */
+ECOSIM_API int32_t ECOSIM_CALL ecosim_snapshot_count(const EcosimWorld* world);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_snapshot_info(const EcosimWorld* world, int32_t index,
+                                                    uint64_t* out_generation);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_snapshot_capture(EcosimWorld* world);
+ECOSIM_API int32_t ECOSIM_CALL ecosim_snapshot_restore(EcosimWorld* world, int32_t index);
+
 ECOSIM_API int32_t ECOSIM_CALL ecosim_event_poll(EcosimWorld* world, EcosimEvent* out,
                                                  int32_t cap, int32_t* out_count);
 

@@ -32,6 +32,7 @@ add_library(ecosim_core STATIC
   src/core/params.cpp
   src/core/render.cpp
   src/core/rle.cpp
+  src/core/snapshots.cpp
   src/core/species.cpp
   src/core/world.cpp
   src/rules/ecosystem.cpp

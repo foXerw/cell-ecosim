@@ -51,7 +51,8 @@ World::World(const EcosimConfig& cfg)
     : cfg_(cfg),
       rules_(RuleTable::from_config(cfg)),
       history_(ECOSIM_HISTORY_CAPACITY),
-      events_(256) {
+      events_(256),
+      snapshots_(SnapshotRing::kDefaultSlots) {
   char why[256];
   if (!validate(cfg, why, static_cast<int32_t>(sizeof(why)))) {
     throw std::invalid_argument(why);
@@ -109,6 +110,7 @@ int32_t World::step(int32_t n_steps) {
       events_.observe(generation_ + 1, counts.data(), static_cast<int32_t>(n));
       grid_.swap_buffers();
     }
+    snapshots_.maybe_capture(generation_ + 1, grid_);
     generation_ += 1;
   }
   return ECOSIM_OK;

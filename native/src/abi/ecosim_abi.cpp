@@ -318,6 +318,45 @@ int32_t ecosim_history_get(const EcosimWorld* world, int32_t index, EcosimHistor
   return ECOSIM_OK;
 }
 
+int32_t ecosim_snapshot_count(const EcosimWorld* world) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  return w ? w->snapshots().count() : 0;
+}
+
+int32_t ecosim_snapshot_info(const EcosimWorld* world, int32_t index,
+                             uint64_t* out_generation) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(const_cast<EcosimWorld*>(world));
+  if (!w) return ECOSIM_ERR_INVALID;
+  if (out_generation == nullptr) {
+    ecosim::set_error("out_generation 为 NULL");
+    return ECOSIM_ERR_INVALID;
+  }
+  if (index < 0 || index >= w->snapshots().count()) {
+    char msg[96];
+    std::snprintf(msg, sizeof(msg), "快照序号 %d 超出 0..%d", index, w->snapshots().count() - 1);
+    ecosim::set_error(msg);
+    return ECOSIM_ERR_RANGE;
+  }
+  *out_generation = w->snapshots().generation_at(index);
+  return ECOSIM_OK;
+}
+
+int32_t ecosim_snapshot_capture(EcosimWorld* world) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  return w->snapshots().capture(w->generation(), w->grid());
+}
+
+int32_t ecosim_snapshot_restore(EcosimWorld* world, int32_t index) {
+  ecosim::clear_error();
+  ecosim::World* w = as_world(world);
+  if (!w) return ECOSIM_ERR_INVALID;
+  return w->restore_snapshot(index);
+}
+
 int32_t ecosim_event_poll(EcosimWorld* world, EcosimEvent* out, int32_t cap,
                           int32_t* out_count) {
   ecosim::clear_error();

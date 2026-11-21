@@ -9,6 +9,7 @@
 #include "core/parallel.h"
 #include "core/events.h"
 #include "core/params.h"
+#include "core/snapshots.h"
 #include "ecosim_abi.h"
 
 namespace ecosim {
@@ -59,6 +60,17 @@ class World {
 
   EventQueue& events() { return events_; }
 
+  SnapshotRing& snapshots() { return snapshots_; }
+
+  /// Restores a snapshot and rewinds the generation counter to it, so stepping
+  /// forward afterwards reproduces exactly what the engine produced the first
+  /// time - which is what makes the scrubber honest.
+  int32_t restore_snapshot(int32_t index) {
+    const int32_t rc = snapshots_.restore(grid_, index);
+    if (rc == ECOSIM_OK) generation_ = snapshots_.generation_at(index);
+    return rc;
+  }
+
   const EcosimParams& params() const { return params_; }
   int32_t set_params(const EcosimParams& p);
 
@@ -87,6 +99,7 @@ class World {
   Grid grid_;
   HistoryRing history_;
   EventQueue events_;
+  SnapshotRing snapshots_;
   std::unique_ptr<parallel::Pool> pool_;
   uint64_t generation_ = 0;
 };
