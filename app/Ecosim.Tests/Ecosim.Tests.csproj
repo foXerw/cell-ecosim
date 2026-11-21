@@ -9,6 +9,12 @@
     <LangVersion>latest</LangVersion>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- xUnit1031 flags blocking Task calls in tests. The concurrency tests
+         block on purpose: asserting "Dispose had NOT completed after 500 ms"
+         is a statement about a task not finishing, which await cannot express.
+         Nothing here blocks on work that needs the test thread, so the
+         deadlock the rule warns about cannot happen. -->
+    <NoWarn>$(NoWarn);xUnit1031</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -517,8 +517,17 @@ public sealed class NativeWorld : SafeHandle
 
     protected override bool ReleaseHandle()
     {
+        // Taking the gate here is the point: SafeHandle.Dispose does not
+        // synchronize with in-flight calls on its own, so without this a
+        // Dispose on one thread could free the world while another thread is
+        // still inside ecosim_world_step using its pointer - a use-after-free
+        // that surfaced as an intermittent AccessViolation in the test host
+        // whenever a clock was stopped and its world disposed in the same test.
         // The engine tolerates a NULL destroy, so a half-built handle cannot leak.
-        NativeMethods.ecosim_world_destroy(handle);
+        lock (_gate)
+        {
+            NativeMethods.ecosim_world_destroy(handle);
+        }
         return true;
     }
 
